@@ -1,3 +1,5 @@
+stages:
+  sast
 snyk-sast:
   stage: sast
   image: node:18

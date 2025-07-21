@@ -1,133 +1,23 @@
 stages:
-  - security
-  - build
-  - test
-  - deploy
+  - sast
 
-variables:
-  # Docker Configuration
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
-  COMPOSE_PROJECT_NAME: "mutillidae_${CI_COMMIT_SHORT_SHA}"
-  COMPOSE_FILE: ".build/docker-compose.yml"
-
-# --- SECURITY STAGE ---
-sast:
-  stage: security
-  image: snyk/snyk:php
+# --- SAST ---
+snyk-sast:
+  stage: sast
+  image: node:18
   script:
+    - npm install -g snyk
     - snyk auth $SNYK_TOKEN
-    - snyk code test --report-file=snyk-sast-report.json
+    - snyk code test --json > snyk-report.json
   artifacts:
+    paths: 
+      - snyk-report.json
     reports:
-      sast: snyk-sast-report.json
-    expire_in: 1 week
-  allow_failure: true
-
-# --- BUILD STAGE ---
-build_services:
-  stage: build
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
-  before_script:
-    - apk add --no-cache docker-compose
-    - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
-  script:
-    - |
-      echo "Building all services..."
-      cd .build
-      docker-compose build
-      
-      # Tag and push individual services
-      for service in database database_admin ldap ldap_admin; do
-        docker tag ${COMPOSE_PROJECT_NAME}_${service} $DOCKERHUB_USERNAME/mutillidae-${service}:$CI_COMMIT_SHORT_SHA
-        docker push $DOCKERHUB_USERNAME/mutillidae-${service}:$CI_COMMIT_SHORT_SHA
-      done
-  artifacts:
-    paths:
-      - .build/
-    expire_in: 1 week
-
-# --- TEST STAGE ---
-compose_test:
-  stage: test
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
-  before_script:
-    - apk add --no-cache docker-compose curl
-  script:
-    - |
-      cd .build
-      echo "Starting services..."
-      docker-compose up -d
-      
-      echo "Running health checks..."
-      for service in database ldap; do
-        container_id=$(docker-compose ps -q $service)
-        docker inspect --format='{{.State.Health.Status}}' $container_id | grep -q "healthy" || exit 1
-      done
-      
-      echo "Testing web accessibility..."
-      curl -I http://localhost:80 --retry 5 --retry-delay 5 --fail
-  dependencies:
-    - build_services
-
-# --- DEPLOY STAGE ---
-deploy_staging:
-  stage: deploy
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
-  before_script:
-    - apk add --no-cache docker-compose
-    - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
-  script:
-    - |
-      cd .build
-      echo "Pulling latest images..."
-      for service in database database_admin ldap ldap_admin; do
-        docker pull $DOCKERHUB_USERNAME/mutillidae-${service}:$CI_COMMIT_SHORT_SHA
-      done
-      
-      echo "Starting production stack..."
-      docker-compose -f docker-compose.yml up -d
-  environment:
-    name: staging
-    url: http://staging.mutillidae.example.com
-  when: manual
+      sast: snyk-report.json
+  variables: 
+    SNYK_TOKEN: $SNYK_TOKEN
   only:
+    - merge_requests
     - main
-
-deploy_production:
-  stage: deploy
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
-  before_script:
-    - apk add --no-cache docker-compose
-  script:
-    - |
-      cd .build
-      echo "Deploying with blue-green strategy..."
-      docker-compose -f docker-compose.yml -p mutillidae_prod up -d --force-recreate
-      
-      echo "Removing old containers..."
-      docker ps -a | grep "mutillidae_old" | awk '{print $1}' | xargs -r docker rm -f
-  environment:
-    name: production
-    url: http://mutillidae.example.com
-  when: manual
-  only:
-    - tags
-
-# --- UTILITIES ---
-cleanup:
-  stage: deploy
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
-  script:
-    - docker system prune -f --all
-  when: always
+  
+# --- SAST ---

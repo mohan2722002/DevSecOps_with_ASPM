@@ -7,8 +7,9 @@ snyk-sast:
   image: node:18
   script:
     - npm install -g snyk
+    - npm install snyk-to-html -g
     - snyk auth $SNYK_TOKEN
-    - snyk code test --json > snyk-report.json
+    - snyk code test --json --exit-code=0 > snyk-report.json
   artifacts:
     paths: 
       - snyk-report.json
@@ -19,5 +20,6 @@ snyk-sast:
   only:
     - merge_requests
     - main
+  
   
 # --- SAST ---

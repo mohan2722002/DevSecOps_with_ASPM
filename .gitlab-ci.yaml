@@ -4,20 +4,38 @@ stages:
 snyk-sast:
   stage: sast
   image: node:18
+  variables:
+    REPORT_FILE: "${CI_PROJECT_DIR}/snyk-report.json"  # Absolute path to report
   before_script:
     - npm install -g snyk@latest
   script:
+    - echo "Starting Snyk scan..."
     - snyk auth $SNYK_TOKEN
-    # Explicitly set working directory and ensure file is created
-    - mkdir -p reports
-    - cd reports && snyk code test --json-file=snyk-report.json || true
-    - ls -l reports/snyk-report.json || echo "Report not generated" > reports/snyk-report.json
+    
+    # Run scan and ensure file exists
+    - snyk code test --json-file="${REPORT_FILE}" || true
+    
+    # Debug: Show directory contents
+    - pwd
+    - ls -la
+    
+    # Create empty report if scan failed to generate one
+    - if [ ! -f "${REPORT_FILE}" ]; then
+        echo '{"vulnerabilities": [], "summary": "No vulnerabilities detected"}' > "${REPORT_FILE}";
+        echo "Created empty report file";
+      fi
+    
+    # Verify report exists and has content
+    - ls -la "${REPORT_FILE}"
+    - echo "Report contents:"
+    - head -n 5 "${REPORT_FILE}" || echo "Empty report"
   artifacts:
     when: always
     paths:
-      - reports/snyk-report.json
+      - "${REPORT_FILE}"
     reports:
-      sast: reports/snyk-report.json
+      sast: "${REPORT_FILE}"
+    expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

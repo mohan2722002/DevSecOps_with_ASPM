@@ -8,14 +8,16 @@ snyk-sast:
     - npm install -g snyk@latest
   script:
     - snyk auth $SNYK_TOKEN
-    - snyk code test --json-file=snyk-report.json || true
-    - ls -l snyk-report.json || echo "Report not generated"
+    # Explicitly set working directory and ensure file is created
+    - mkdir -p reports
+    - cd reports && snyk code test --json-file=snyk-report.json || true
+    - ls -l reports/snyk-report.json || echo "Report not generated" > reports/snyk-report.json
   artifacts:
     when: always
     paths:
-      - snyk-report.json
+      - reports/snyk-report.json
     reports:
-      sast: snyk-report.json
+      sast: reports/snyk-report.json
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

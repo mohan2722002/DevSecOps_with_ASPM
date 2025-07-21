@@ -1,14 +1,15 @@
 stages:
-  - sast  # This is now properly formatted as an array
+  - sast
 
 snyk-sast:
   stage: sast
   image: node:18
   before_script:
-    - npm install -g snyk snyk-to-html
+    - npm install -g snyk@latest
   script:
     - snyk auth $SNYK_TOKEN
-    - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
+    - snyk code test --json-file=snyk-report.json || true
+    - ls -l snyk-report.json || echo "Report not generated"
   artifacts:
     when: always
     paths:

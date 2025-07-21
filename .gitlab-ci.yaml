@@ -1,16 +1,20 @@
 stages:
-  sast
+  - sast  # This is now properly formatted as an array
+
 snyk-sast:
   stage: sast
   image: node:18
+  before_script:
+    - npm install -g snyk snyk-to-html
   script:
-    - npm install -g snyk
     - snyk auth $SNYK_TOKEN
-    # This is the key fix - use --json-file instead of redirection
-    - snyk code test --json-file=snyk-report.json || echo "Vulnerabilities found - check report"
+    - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
   artifacts:
-    when: always  # Critical for ensuring report upload
+    when: always
     paths:
       - snyk-report.json
     reports:
       sast: snyk-report.json
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

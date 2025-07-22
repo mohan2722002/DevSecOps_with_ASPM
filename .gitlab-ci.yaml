@@ -23,26 +23,15 @@ zap_scan:
     - centos
   script:
     - echo "🕵️ Running OWASP ZAP scans (HTTP & HTTPS)..."
-    
-    # ZAP HTTP scan
-    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw zaproxy/zap-stable /zap/zap-baseline.py \
-        -t http://host.docker.internal:8888 \
-        -r zap_http_report.html \
-        -I
-
-    # ZAP HTTPS scan (disable cert validation for self-signed certs)
-    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw zaproxy/zap-stable /zap/zap-baseline.py \
-        -t https://host.docker.internal:443 \
-        -r zap_https_report.html \
-        -I \
-        -z "-config connection.ssl.certValidation=false"
-        
+    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw zaproxy/zap-stable /zap/zap-baseline.py -t http://host.docker.internal:8888 -r zap_http_report.html -I
+    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw zaproxy/zap-stable /zap/zap-baseline.py -t https://host.docker.internal:443 -r zap_https_report.html -I -z "-config connection.ssl.certValidation=false"
   artifacts:
     paths:
       - zap_http_report.html
       - zap_https_report.html
     when: always
     expire_in: 1 week
+
 
 
 

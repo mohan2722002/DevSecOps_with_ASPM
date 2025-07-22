@@ -1,41 +1,16 @@
 stages:
-  - sast
+  - build
 
-snyk-sast:
-  stage: sast
-  image: node:18
-  variables:
-    REPORT_FILE: "${CI_PROJECT_DIR}/snyk-report.json"  # Absolute path to report
-  before_script:
-    - npm install -g snyk@latest
+variables:
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  - docker info
+
+build:
+  stage: build
+  tags:
+    - centos  # Make sure your local GitLab runner is tagged this way
   script:
-    - echo "Starting Snyk scan..."
-    - snyk auth $SNYK_TOKEN
-    
-    # Run scan and ensure file exists
-    - snyk code test --json-file="${REPORT_FILE}" || true
-    
-    # Debug: Show directory contents
-    - pwd
-    - ls -la
-    
-    # Create empty report if scan failed to generate one
-    - if [ ! -f "${REPORT_FILE}" ]; then
-        echo '{"vulnerabilities": [], "summary": "No vulnerabilities detected"}' > "${REPORT_FILE}";
-        echo "Created empty report file";
-      fi
-    
-    # Verify report exists and has content
-    - ls -la "${REPORT_FILE}"
-    - echo "Report contents:"
-    - head -n 5 "${REPORT_FILE}" || echo "Empty report"
-  artifacts:
-    when: always
-    paths:
-      - "${REPORT_FILE}"
-    reports:
-      sast: "${REPORT_FILE}"
-    expire_in: 1 week
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - echo "🚧 Building containers using Docker Compose..."
+    - docker compose -f .build/docker-compose.yml up -d --no-cache

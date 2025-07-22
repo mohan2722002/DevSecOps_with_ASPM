@@ -14,4 +14,3 @@ build:
   script:
     - echo "🚧 Building containers using Docker Compose..."
     - docker compose -f .build/docker-compose.yml up -d --no-cache
-

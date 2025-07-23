@@ -4,6 +4,8 @@ stages:
 secret_scan:
   stage: secret_scan
   image: zricethezav/gitleaks:latest
+  tags:
+    - centos
   script:
     - echo "🔍 Starting Gitleaks secret scan..."
     - gitleaks detect \

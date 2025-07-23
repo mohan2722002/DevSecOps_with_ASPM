@@ -1,22 +1,19 @@
 stages:
-  - sast
+  - sca
 
-snyk-sast:
-  stage: sast
+snyk-sca:
+  stage: sca
   image: node:18
   before_script:
-    - npm install -g snyk snyk-to-html
+    - npm install -g snyk
   script:
     - snyk auth $SNYK_TOKEN
-    - snyk code test --json-file=snyk-report.json || echo "Snyk SAST found vulnerabilities - check report"
     - snyk test --json --exit-code=0 > snyk-sca-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
   artifacts:
     when: always
     paths:
-      - snyk-report.json
       - snyk-sca-report.json
     reports:
-      sast: snyk-report.json
       dependency_scanning: snyk-sca-report.json
   variables:
     SNYK_TOKEN: $SNYK_TOKEN

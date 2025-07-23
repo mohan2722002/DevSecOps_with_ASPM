@@ -1,3 +1,6 @@
+stages:
+  - dependency_scanning
+
 snyk-sca:
   stage: dependency_scanning
   image: node:18

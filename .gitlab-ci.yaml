@@ -8,13 +8,9 @@ secret_scan:
     - centos
   script:
     - echo "🔍 Starting Gitleaks secret scan..."
-    - gitleaks detect \
-        --source . \
-        --no-git \
-        --report-format json \
-        --report-path ./gitleaks_report.json
-    - echo "📁 Contents after scan:"
-    - ls -la ./gitleaks_report.json || echo "Report not found"
+    - gitleaks detect --source "$CI_PROJECT_DIR" --no-git --report-format json --report-path "$CI_PROJECT_DIR/gitleaks_report.json"
+    - echo "📄 Checking report:"
+    - ls -la "$CI_PROJECT_DIR/gitleaks_report.json" || echo "❌ Report not found"
   artifacts:
     paths:
       - gitleaks_report.json

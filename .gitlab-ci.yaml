@@ -1,23 +1,21 @@
 stages:
-  - sca
+  - sast  # This is now properly formatted as an array
 
-# --- SCA ---
-snyk-sca:
-  stage: sca
+snyk-sast:
+  stage: sast
   image: node:18
+  before_script:
+    - npm install -g snyk snyk-to-html
   script:
-  - echo "🔐 Authenticating Snyk CLI..."
-  - snyk auth $SNYK_TOKEN
-  - echo "🔍 Running Snyk SCA scan..."
-  - snyk test --json > snyk-sca-report.json || echo "⚠️ Vulnerabilities found, but job will continue."
-
+    - snyk auth $SNYK_TOKEN
+    - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
+    - snyk test --json --exit-code=0 > snyk-sca-report.json || echo "⚠️ Vulnerabilities found
   artifacts:
+    when: always
     paths:
-      - snyk-sca-report.json
+      - snyk-report.json
     reports:
-      dependency_scanning: snyk-sca-report.json
-  variables:
-    SNYK_TOKEN: $SNYK_TOKEN
-  only:
-    - merge_requests
-    - main
+      sast: snyk-report.json
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

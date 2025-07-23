@@ -1,0 +1,16 @@
+{
+  "name": "sca-test-project",
+  "version": "1.0.0",
+  "description": "Test project for SCA scanning",
+  "dependencies": {
+    "lodash": "4.17.4",
+    "moment": "2.19.3",
+    "express": "4.16.0",
+    "request": "2.88.0",
+    "jquery": "3.3.1"
+  },
+  "devDependencies": {
+    "webpack": "4.0.0",
+    "handlebars": "4.0.0"
+  }
+}

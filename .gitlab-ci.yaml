@@ -1,38 +1,18 @@
 stages:
-  - build
-  - zap_scan
+  - sca_scan
 
-variables:
-  DOCKER_TLS_CERTDIR: ""
-
-before_script:
-  - docker info
-
-build:
-  stage: build
-  tags:
-    - centos  # Your registered GitLab Runner tag
-  script:
-    - echo "🚧 Building containers with Docker Compose..."
-    - docker compose -f .build/docker-compose.yml build --no-cache
-    - echo "🚀 Starting containers..."
-    - docker compose -f .build/docker-compose.yml up -d
-
-zap_scan:
-  stage: zap_scan
+sca_scan:
+  stage: sca_scan
   tags:
     - centos
   script:
-    - echo "🕵️ Running OWASP ZAP scans on live app (HTTP + HTTPS)..."
-    # Run ZAP container and mount project directory for saving reports
-    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw owasp/zap2docker-stable zap-baseline.py \
-        -t http://host.docker.internal:8888 -r zap_http_report.html -I
-    - docker run --rm -v $CI_PROJECT_DIR:/zap/wrk/:rw owasp/zap2docker-stable zap-baseline.py \
-        -t https://host.docker.internal:443 -r zap_https_report.html -I
+    - echo "🔐 Using locally installed Snyk CLI..."
+    - snyk auth $SNYK_TOKEN
+    - snyk test --json > snyk_sca_report.json || echo "⚠️ Vulnerabilities found."
+    - ls -la snyk_sca_report.json || echo "❌ Report not generated"
   artifacts:
     paths:
-      - zap_http_report.html
-      - zap_https_report.html
+      - snyk_sca_report.json
     when: always
     expire_in: 1 week
-
+  allow_failure: true

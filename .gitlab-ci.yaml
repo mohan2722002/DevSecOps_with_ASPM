@@ -8,6 +8,9 @@ snyk-sca:
     - npm install -g snyk
   script:
     - snyk auth $SNYK_TOKEN
+    - echo "🔍 Checking project structure:"
+    - ls -la
+    - echo "📁 Current directory: $(pwd)"
     - snyk test --json > snyk-sca-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
     - snyk test --sarif > gl-dependency-scanning-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
     - echo "📊 Vulnerability Summary:"

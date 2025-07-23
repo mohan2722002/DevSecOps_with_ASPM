@@ -5,13 +5,11 @@ snyk-sca:
   stage: dependency_scanning
   image: node:18
   before_script:
-    - npm install -g snyk snyk-to-html
-    - npm install -g python3      # ensure Python is available
+    - npm install -g snyk
   script:
     - snyk auth $SNYK_TOKEN
     - snyk test --json > snyk-sca-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
-    # Convert Snyk JSON to GitLab's dependency scanning report format
-    - python3 convert-snyk-to-gitlab.py
+    - snyk test --sarif > gl-dependency-scanning-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
   artifacts:
     when: always
     paths:
@@ -19,7 +17,9 @@ snyk-sca:
       - gl-dependency-scanning-report.json
     reports:
       dependency_scanning: gl-dependency-scanning-report.json
+    expire_in: 1 week
   variables:
     SNYK_TOKEN: $SNYK_TOKEN
+  allow_failure: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

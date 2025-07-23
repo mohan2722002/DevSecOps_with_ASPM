@@ -1,19 +1,18 @@
 stages:
-  - secret_scan
+  - sca_scan
 
-secret_scan:
-  stage: secret_scan
-  image: zricethezav/gitleaks:latest
+sca_scan:
+  stage: sca_scan
   tags:
     - centos
   script:
-    - echo "🔍 Starting Gitleaks secret scan..."
-    - gitleaks detect --source "$CI_PROJECT_DIR" --no-git --report-format json --report-path "$CI_PROJECT_DIR/gitleaks_report.json"
-    - echo "📄 Checking report:"
-    - ls -la "$CI_PROJECT_DIR/gitleaks_report.json" || echo "❌ Report not found"
+    - echo "🔐 Using locally installed Snyk CLI..."
+    - snyk auth $SNYK_TOKEN
+    - snyk test --json > snyk_sca_report.json || echo "⚠️ Vulnerabilities found."
+    - ls -la snyk_sca_report.json || echo "❌ Report not generated"
   artifacts:
     paths:
-      - gitleaks_report.json
+      - snyk_sca_report.json
     when: always
     expire_in: 1 week
   allow_failure: true

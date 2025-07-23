@@ -3,12 +3,14 @@ stages:
 
 secret_scan:
   stage: secret_scan
-  image: zricethezav/gitleaks:latest
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]  # disables default entrypoint so script runs directly
   tags:
     - centos
   script:
     - echo "🔍 Starting Gitleaks secret scan..."
-    - gitleaks detect \
+    - ./gitleaks detect \
         --source . \
         --no-git \
         --report-format json \
@@ -18,4 +20,4 @@ secret_scan:
       - gitleaks_report.json
     when: always
     expire_in: 1 week
-  allow_failure: true  # Optional: keeps pipeline running even if secrets are found
+  allow_failure: true

@@ -1,27 +1,21 @@
 stages:
-  - sca_scan
+  - sca
 
-sca_scan:
-  stage: sca_scan
-image: node:18  # Or any base image with npm support
-  tags:
-    - centos
-  before_script:
-    - echo "🔐 Authenticating Snyk CLI..."
+# --- SCA ---
+snyk-sca:
+  stage: sca
+  image: node:18
+  script:
     - npm install -g snyk
     - snyk auth $SNYK_TOKEN
-  script:
-    - echo "🔐 Using locally installed Snyk CLI..."
-    - snyk auth $SNYK_TOKEN
-    - snyk test --json > snyk_sca_report.json || echo "⚠️ Vulnerabilities found."
-    - ls -la snyk_sca_report.json || echo "❌ Report not generated"
-    - echo "🔍 Running Snyk SCA scan..."
-    - snyk test --json > snyk_sca_report.json || true
-    - echo "📄 Listing report file:"
-    - ls -la snyk_sca_report.json
+    - snyk test --json --exit-code=0 > snyk-sca-report.json
   artifacts:
     paths:
-      - snyk_sca_report.json
-    when: always
-    expire_in: 1 week
-  allow_failure: true
+      - snyk-sca-report.json
+    reports:
+      dependency_scanning: snyk-sca-report.json
+  variables:
+    SNYK_TOKEN: $SNYK_TOKEN
+  only:
+    - merge_requests
+    - main

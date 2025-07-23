@@ -6,9 +6,11 @@ snyk-sca:
   stage: sca
   image: node:18
   script:
-    - npm install -g snyk
-    - snyk auth $SNYK_TOKEN
-    - snyk test --json --exit-code=0 > snyk-sca-report.json
+  - echo "🔐 Authenticating Snyk CLI..."
+  - snyk auth $SNYK_TOKEN
+  - echo "🔍 Running Snyk SCA scan..."
+  - snyk test --json > snyk-sca-report.json || echo "⚠️ Vulnerabilities found, but job will continue."
+
   artifacts:
     paths:
       - snyk-sca-report.json

@@ -8,7 +8,27 @@ snyk-sca:
     - npm install -g snyk
   script:
     - snyk auth $SNYK_TOKEN
+    - echo "Files in current directory:"
     - ls -la
+    - echo "Searching for package.json:"
+    - find . -name "package.json"
+    - echo "Creating package.json if missing:"
+    - |
+      if [ ! -f package.json ]; then
+        cat > package.json << EOF
+      {
+        "name": "sca-test-project",
+        "version": "1.0.0",
+        "dependencies": {
+          "lodash": "4.17.4",
+          "moment": "2.19.3",
+          "express": "4.16.0"
+        }
+      }
+      EOF
+      fi
+    - echo "Final check:"
+    - ls -la package.json
     - snyk test --json > snyk-sca-report.json || true
   artifacts:
     paths:

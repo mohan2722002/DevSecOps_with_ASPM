@@ -3,13 +3,22 @@ stages:
 
 sca_scan:
   stage: sca_scan
+image: node:18  # Or any base image with npm support
   tags:
     - centos
+  before_script:
+    - echo "🔐 Authenticating Snyk CLI..."
+    - npm install -g snyk
+    - snyk auth $SNYK_TOKEN
   script:
     - echo "🔐 Using locally installed Snyk CLI..."
     - snyk auth $SNYK_TOKEN
     - snyk test --json > snyk_sca_report.json || echo "⚠️ Vulnerabilities found."
     - ls -la snyk_sca_report.json || echo "❌ Report not generated"
+    - echo "🔍 Running Snyk SCA scan..."
+    - snyk test --json > snyk_sca_report.json || true
+    - echo "📄 Listing report file:"
+    - ls -la snyk_sca_report.json
   artifacts:
     paths:
       - snyk_sca_report.json

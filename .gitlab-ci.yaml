@@ -12,7 +12,9 @@ secret_scan:
         --source . \
         --no-git \
         --report-format json \
-        --report-path gitleaks_report.json
+        --report-path ./gitleaks_report.json
+    - echo "📁 Contents after scan:"
+    - ls -la ./gitleaks_report.json || echo "Report not found"
   artifacts:
     paths:
       - gitleaks_report.json

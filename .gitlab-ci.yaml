@@ -1,20 +1,24 @@
 stages:
-  - sca
+  - dependency_scanning
 
 snyk-sca:
-  stage: sca
+  stage: dependency_scanning
   image: node:18
   before_script:
-    - npm install -g snyk
+    - npm install -g snyk snyk-to-html
+    - npm install -g python3      # ensure Python is available
   script:
     - snyk auth $SNYK_TOKEN
-    - snyk test --json --exit-code=0 > snyk-sca-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
+    - snyk test --json > snyk-sca-report.json || echo "⚠️ Snyk SCA found vulnerabilities"
+    # Convert Snyk JSON to GitLab's dependency scanning report format
+    - python3 convert-snyk-to-gitlab.py
   artifacts:
     when: always
     paths:
       - snyk-sca-report.json
+      - gl-dependency-scanning-report.json
     reports:
-      dependency_scanning: snyk-sca-report.json
+      dependency_scanning: gl-dependency-scanning-report.json
   variables:
     SNYK_TOKEN: $SNYK_TOKEN
   rules:

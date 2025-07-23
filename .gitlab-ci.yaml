@@ -1,6 +1,3 @@
-stages:
-  - dependency_scanning
-
 snyk-sca:
   stage: dependency_scanning
   image: node:18
@@ -8,24 +5,10 @@ snyk-sca:
     - npm install -g snyk
   script:
     - snyk auth $SNYK_TOKEN
-    - echo "Checking project structure:"
     - ls -la
-    - echo "Current directory:"
-    - pwd
-    - snyk test --json > snyk-sca-report.json || echo "Snyk SCA found vulnerabilities"
-    - snyk test --sarif > gl-dependency-scanning-report.json || echo "Snyk SCA found vulnerabilities"
-    - echo "Vulnerability Summary:"
-    - snyk test || echo "Scan completed - check artifacts for details"
+    - snyk test --json > snyk-sca-report.json || true
   artifacts:
-    when: always
     paths:
       - snyk-sca-report.json
-      - gl-dependency-scanning-report.json
-    reports:
-      dependency_scanning: gl-dependency-scanning-report.json
-    expire_in: 1 week
   variables:
     SNYK_TOKEN: $SNYK_TOKEN
-  allow_failure: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

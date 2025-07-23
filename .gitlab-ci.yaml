@@ -3,14 +3,12 @@ stages:
 
 secret_scan:
   stage: secret_scan
-  image:
-    name: zricethezav/gitleaks:latest
-    entrypoint: [""]  # disables default entrypoint so script runs directly
+  image: zricethezav/gitleaks:latest
   tags:
     - centos
   script:
     - echo "🔍 Starting Gitleaks secret scan..."
-    - ./gitleaks detect \
+    - gitleaks detect \
         --source . \
         --no-git \
         --report-format json \

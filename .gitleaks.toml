@@ -1,0 +1,7 @@
+[[allowlist]]
+description = "Training/demo keys"
+paths = [
+  "src/includes/hints/**",
+  "src/labs/**",
+  "src/javascript/html5-secrets.js"
+]

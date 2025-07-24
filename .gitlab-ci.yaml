@@ -1,6 +1,19 @@
 stages:
   - secret_scan
+  - sca
+  - sast
+  - build
+  - image_scan
+  - runtime_security
+  - dast
 
+variables:
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  - docker info
+
+# Secret Scanning Stage
 gitleaks_scan:
   stage: secret_scan
   image:
@@ -12,3 +25,146 @@ gitleaks_scan:
     paths:
       - gitleaks-report.json
     when: always
+
+
+# Software Composition Analysis
+trivy-sca:
+  stage: sca
+  tags:
+    - centos
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  script:
+    - echo "🔍 Running SCA scan..."
+    - trivy fs --format json --output sca-report.json .
+  artifacts:
+    paths:
+      - sca-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+# Static Application Security Testing
+snyk-sast:
+  stage: sast
+  image: node:18
+  before_script:
+    - npm install -g snyk snyk-to-html
+  script:
+    - echo "🔍 Running SAST scan..."
+    - snyk auth $SNYK_TOKEN
+    - snyk code test --json-file=snyk-sast-report.json || echo "Snyk found vulnerabilities - check report"
+  artifacts:
+    when: always
+    paths:
+      - snyk-sast-report.json
+    reports:
+      sast: snyk-sast-report.json
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+# Build Stage
+build:
+  stage: build
+  tags:
+    - centos
+  script:
+    - echo "🚧 Building containers using Docker Compose..."
+    - docker compose -f .build/docker-compose.yml up -d
+  artifacts:
+    expire_in: 1 hour
+
+# Container Image Scanning
+trivy-image-scan:
+  stage: image_scan
+  tags:
+    - centos
+  script:
+    - echo "🔍 Scanning Docker images..."
+    - |
+      IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
+      [ -z "$IMAGES" ] && { echo "❌ No images found"; exit 1; }
+      
+      mkdir -p image-reports && echo "📋 Scanning $(echo "$IMAGES" | wc -l) images"
+      
+      echo "$IMAGES" | while read image; do
+        echo "Scanning: $image"
+        trivy image --format json --severity HIGH,CRITICAL \
+          --output "image-reports/$(echo $image | tr ':/' '--').json" "$image"
+      done
+      
+      echo "✅ Image scan complete."
+  artifacts:
+    paths:
+      - image-reports/
+    expire_in: 1 week
+  dependencies:
+    - build
+  allow_failure: true
+
+# Container Runtime Security Scanning
+container-runtime-scan:
+  stage: runtime_security
+  tags:
+    - centos
+  script:
+    - echo "🔍 Scanning running containers..."
+    - |
+      mkdir -p runtime-reports
+      for container in $(docker ps --format "{{.ID}}"); do
+        image=$(docker inspect $container --format='{{.Config.Image}}')
+        echo "Scanning container $container (image: $image)"
+        trivy image --format json --severity HIGH,CRITICAL \
+          --output "runtime-reports/container-$(echo $image | tr ':/' '--').json" "$image"
+      done
+      echo "✅ Runtime scan complete."
+  artifacts:
+    paths:
+      - runtime-reports/
+    expire_in: 1 week
+  dependencies:
+    - build
+  allow_failure: true
+
+# Dynamic Application Security Testing
+zap-dast-scan:
+  stage: dast
+  tags:
+    - centos
+  script:
+    - echo "🚀 Running DAST scan with OWASP ZAP..."
+    - |
+      # Auto-detect application URL
+      PORT=$(docker ps --format "{{.Ports}}" | grep -o '[0-9]*:80\|[0-9]*:8080' | cut -d':' -f1 | head -1)
+      [ -z "$PORT" ] && PORT="80"
+      APP_URL="http://localhost:$PORT"
+      
+      echo "🎯 Target URL: $APP_URL"
+      echo "🔍 Testing connection..."
+      curl -s --connect-timeout 5 $APP_URL > /dev/null && echo "✅ App is reachable" || echo "⚠️ App might not be accessible"
+      
+      mkdir -p dast-reports
+      chmod 777 dast-reports
+      
+      echo "🚀 Starting ZAP baseline scan..."
+      docker run --rm --network="host" \
+        -v $(pwd)/dast-reports:/zap/wrk/:rw \
+        zaproxy/zap-stable zap-baseline.py \
+        -t $APP_URL \
+        -J zap-baseline-report.json \
+        -r zap-baseline-report.html \
+        -I || echo "ZAP scan completed with findings"
+      
+      echo "✅ DAST scan complete."
+  artifacts:
+    paths:
+      - dast-reports/
+    expire_in: 1 week
+  dependencies:
+    - container-runtime-scan
+  allow_failure: true
+

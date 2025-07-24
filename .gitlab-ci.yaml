@@ -2,9 +2,7 @@ stages:
   - dast 
 zap_dast_scan:
   stage: dast
-  image: zaproxy/zap-stable:latest
-  tags:
-    - centos   
+  image: zaproxy/zap-stable:latest  
   variables:
     APP_URL: https://localhost:80
     APP_URL: http://localhost:8888

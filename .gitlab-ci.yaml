@@ -1,178 +1,19 @@
-stages:
-  - building
-  - scan
-  - runtime-security
-  - dast
-variables:
-  DOCKER_TLS_CERTDIR: ""
-
-before_script:
-  - docker info
-
-build:
-  stage: building
-  tags:
-    - centos  # Make sure your local GitLab runner is tagged this way
-  script:
-    - echo "🚧 Building containers using Docker Compose..."
-    - docker compose -f .build/docker-compose.yml up -d 
-
-
-# Simple image vulnerability scanning
-trivy-scan:
-  stage: scan
-  tags:
-    - centos
-  script:
-    - echo "🔍 Scanning Docker images..."
-    - |
-      IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
-      [ -z "$IMAGES" ] && { echo "❌ No images found"; exit 1; }
-      
-      mkdir -p reports && echo "📋 Scanning $(echo "$IMAGES" | wc -l) images"
-      
-      echo "$IMAGES" | while read image; do
-        echo "Scanning: $image"
-        trivy image --format json --severity HIGH,CRITICAL \
-          --output "reports/$(echo $image | tr ':/' '--').json" "$image"
-      done
-      
-      echo "✅ Scan complete. Reports in artifacts."
-  artifacts:
-    paths:
-      - reports/
-    expire_in: 1 week
-  dependencies:
-    - build
-
-
-# This would be CONTAINER scanning
-container-runtime-scan:
-  stage: runtime-security
-  tags:
-    - centos
-  script:
-    - echo "🔍 Scanning running containers..."
-    - |
-      for container in $(docker ps --format "{{.ID}}"); do
-        image=$(docker inspect $container --format='{{.Config.Image}}')
-        echo "Scanning container $container (image: $image)"
-        trivy image --severity HIGH,CRITICAL $image
-      done
-  dependencies:
-    - build
-
-
-
-dast-zap-scan:
+stages: 
+  - dast 
+zap_dast_scan:
   stage: dast
-  tags:
-    - centos
-  before_script:
-    - echo "🔧 Setting up OWASP ZAP for DAST..."
-    # Check if ZAP is installed, if not install it
-    - |
-      if ! command -v zap.sh &> /dev/null; then
-        echo "Installing OWASP ZAP..."
-        # Download and install ZAP
-        wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.sh
-        chmod +x ZAP_2_14_0_unix.sh
-        sudo ./ZAP_2_14_0_unix.sh -q
-        export PATH="/opt/zaproxy:$PATH"
-      else
-        echo "OWASP ZAP already installed"
-      fi
+  image: zaproxy/zap-stable:latest
+  variables:
+    APP_URL: http://your-application:8080  # Replace with correct hostname/port
   script:
-    - echo "🚀 Starting DAST scan with OWASP ZAP..."
-    - |
-      # Get the application URL (adjust based on your running containers)
-      APP_URL="http://localhost:8080"  # Change this to your app's URL
-      
-      # Create reports directory
-      mkdir -p dast-reports
-      
-      # Start ZAP daemon
-      zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true &
-      
-      # Wait for ZAP to start
-      sleep 30
-      
-      echo "🔍 Running ZAP baseline scan..."
-      # ZAP baseline scan (quick scan)
-      zap-baseline.py -t $APP_URL -J dast-reports/zap-baseline-report.json -r dast-reports/zap-baseline-report.html
-      
-      echo "🔍 Running ZAP full scan..."
-      # ZAP full scan (comprehensive scan)
-      zap-full-scan.py -t $APP_URL -J dast-reports/zap-full-report.json -r dast-reports/zap-full-report.html
-      
-      echo "✅ DAST scans completed"
+    - echo "Starting ZAP DAST scan against ${APP_URL}"
+    - zap-baseline.py -t ${APP_URL} -r zap_report.html
+    - ls -l  # Show that the report exists
   artifacts:
-    reports:
-      dast: dast-reports/zap-*.json
     paths:
-      - dast-reports/
+      - zap_report.html
     expire_in: 1 week
-  dependencies:
-    - container-runtime-scan
-  allow_failure: true  # Don't fail pipeline for security findings initially
-
-# Alternative: ZAP using Docker (if you prefer containerized approach)
-dast-zap-docker:
-  stage: dast
-  tags:
-    - centos
-  script:
-    - echo "🔍 DAST scan using ZAP Docker..."
-    - |
-      APP_URL="http://host.docker.internal:8080"  # Adjust for your app
-      mkdir -p dast-reports
-      
-      # ZAP Baseline scan using Docker
-      docker run --rm \
-        -v $(pwd)/dast-reports:/zap/wrk/:rw \
-        -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-        -t $APP_URL \
-        -J zap-baseline-report.json \
-        -r zap-baseline-report.html
-      
-      # ZAP Full scan using Docker  
-      docker run --rm \
-        -v $(pwd)/dast-reports:/zap/wrk/:rw \
-        -t ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
-        -t $APP_URL \
-        -J zap-full-report.json \
-        -r zap-full-report.html
-  artifacts:
-    reports:
-      dast: dast-reports/zap-*.json
-    paths:
-      - dast-reports/
-    expire_in: 1 week
-  dependencies:
-    - container-runtime-scan
-  when: manual  # Make this optional since you might prefer the native approach
-
-# Quick ZAP scan (most efficient)
-dast-zap-quick:
-  stage: dast
-  tags:
-    - centos
-  script:
-    - echo "⚡ Quick DAST scan..."
-    - |
-      APP_URL=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | grep -E "80|8080|443" | head -1 | awk '{print "http://localhost:" $2}' | cut -d':' -f3 | cut -d'-' -f1)
-      [ -z "$APP_URL" ] && APP_URL="http://localhost:8080"
-      
-      echo "Scanning: $APP_URL"
-      
-      docker run --rm --network host \
-        -v $(pwd):/zap/wrk/:rw \
-        ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-        -t $APP_URL \
-        -J zap-report.json \
-        -r zap-report.html
-  artifacts:
-    paths:
-      - zap-report.*
-  dependencies:
-    - container-runtime-scan
+  after_script:
+    - docker-compose down # Optional: clean up deployment
+  only:
+    - main

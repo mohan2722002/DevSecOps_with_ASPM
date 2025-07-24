@@ -14,7 +14,7 @@ build:
     - centos  # Make sure your local GitLab runner is tagged this way
   script:
     - echo "🚧 Building containers using Docker Compose..."
-    - docker compose -f .build/docker-compose.yml up -d --no-cache
+    - docker compose -f .build/docker-compose.yml up -d 
 
 # Add this to your existing stages
 

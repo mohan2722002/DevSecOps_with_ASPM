@@ -11,4 +11,4 @@ gitleaks_scan:
     paths:
       - gitleaks-report.json
     when: always
-  allow_failure: true
+  allow_failure: true   # <-- Pipeline will show job as "passed" even if leaks are found

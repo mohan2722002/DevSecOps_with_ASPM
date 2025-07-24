@@ -18,24 +18,13 @@ build:
 
 
 # Simple image vulnerability scanning
-trivy-image-scan:
+trivy-scan:
   stage: scan
   tags:
     - centos
-  before_script:
-    - echo "🔍 Installing Trivy..."
-    - mkdir -p ./bin
-    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b ./bin
-    - export PATH="$PWD/bin:$PATH"
+  image: aquasec/trivy:latest
   script:
-    - echo "🔍 Scanning Docker images..."
-    - |
-      for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>"); do
-        echo "Scanning: $image"
-        ./bin/trivy image --format json --output "$(echo $image | tr ':/' '--')-report.json" $image
-      done
+    - trivy image --format json --output report.json $IMAGE_NAME
   artifacts:
     paths:
-      - "*-report.json"
-  dependencies:
-    - build
+      - report.json

@@ -1,6 +1,6 @@
 stages:
   - building
-  - scans
+  - scan
   
 variables:
   DOCKER_TLS_CERTDIR: ""
@@ -19,12 +19,27 @@ build:
 
 # Simple image vulnerability scanning
 trivy-scan:
-  stage: scans
+  stage: scan
   tags:
     - centos
-  image: aquasec/trivy:latest
   script:
-    - trivy image --format json --output report.json $IMAGE_NAME
+    - echo "🔍 Scanning Docker images..."
+    - |
+      IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
+      [ -z "$IMAGES" ] && { echo "❌ No images found"; exit 1; }
+      
+      mkdir -p reports && echo "📋 Scanning $(echo "$IMAGES" | wc -l) images"
+      
+      echo "$IMAGES" | while read image; do
+        echo "Scanning: $image"
+        trivy image --format json --severity HIGH,CRITICAL \
+          --output "reports/$(echo $image | tr ':/' '--').json" "$image"
+      done
+      
+      echo "✅ Scan complete. Reports in artifacts."
   artifacts:
     paths:
-      - report.json
+      - reports/
+    expire_in: 1 week
+  dependencies:
+    - build

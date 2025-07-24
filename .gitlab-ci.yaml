@@ -6,18 +6,16 @@ stages:
   - image_scan
   - container_security
   - dast
+  - upload_results
 
 variables:
   DOCKER_TLS_CERTDIR: ""
-  # Avoid storing secrets like SNYK_TOKEN in plaintext variables. Reference from a secured secret management system.
-  # SNYK_TOKEN should be stored in a protected CI/CD variable or injected via a secrets manager (not committed here).
-  # SNYK_TOKEN: ${SNYK_TOKEN}
 
 # 1. Secret Scanning
 gitleaks_scan:
   stage: secret_scan
   image:
-    name: zricethezav/gitleaks:v8.18.2 # Pin to a specific version for supply chain integrity
+    name: zricethezav/gitleaks
     entrypoint: [""]
   script:
     - gitleaks detect --source . --report-format json --report-path gitleaks-report.json --verbose || true
@@ -25,32 +23,26 @@ gitleaks_scan:
     paths:
       - gitleaks-report.json
     when: always
-  rules:
-    - exists:
-        - '**/*'
 
 # 2. SCA (Software Composition Analysis)
 trivy-sca:
   stage: sca
-  image: alpine:3.19  # Pin to a specific tag for deterministic builds
+  image: alpine:latest
   before_script:
     - apk add --no-cache curl
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
-    - trivy fs --format json --output report.json --exit-code 0 .
+    - trivy fs --format json --output report.json .
   artifacts:
     paths:
       - report.json
-  rules:
-    - exists:
-        - '**/*'
 
 # 3. SAST (Static Application Security Testing)
 snyk-sast:
   stage: sast
-  image: node:18.20.0   # Pinning Node version
+  image: node:18
   before_script:
-    - npm install -g snyk@1.1234.0 snyk-to-html@1.7.0   # Pin tool versions
+    - npm install -g snyk snyk-to-html
   script:
     - snyk auth $SNYK_TOKEN
     - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
@@ -63,7 +55,6 @@ snyk-sast:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  # Ensure SNYK_TOKEN provided via secure CI/CD variables or secret manager.
 
 # 4. Building Image
 build:
@@ -73,8 +64,6 @@ build:
   script:
     - echo "🚧 Building containers using Docker Compose..."
     - docker compose -f .build/docker-compose.yml up -d
-  # Consider cleaning up resources after the build, e.g.:
-    # - docker compose -f .build/docker-compose.yml down --volumes
 
 # 5. Image Scanning
 trivy-scan:
@@ -86,12 +75,15 @@ trivy-scan:
     - |
       IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
       [ -z "$IMAGES" ] && { echo "❌ No images found"; exit 1; }
+     
       mkdir -p reports && echo "📋 Scanning $(echo "$IMAGES" | wc -l) images"
+     
       echo "$IMAGES" | while read image; do
         echo "Scanning: $image"
         trivy image --format json --severity HIGH,CRITICAL \
           --output "reports/$(echo $image | tr ':/' '--').json" "$image"
       done
+     
       echo "✅ Scan complete. Reports in artifacts."
   artifacts:
     paths:
@@ -127,11 +119,28 @@ zap_dast_scan:
     - echo "Running ZAP baseline scan against $APP_URL"
     - mkdir -p zap-reports
     - chmod 777 zap-reports
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable:2.14.0 zap-baseline.py -t $APP_URL -r report.html || true  # Pin ZAP version
+    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html || true
   artifacts:
     paths:
       - zap-reports/report.html
     expire_in: 1 week
 
-# --- Optional: Audit logging placeholder example ---
-# Consider integrating extended audit logging of stage outcomes via scripts or a centralized log collector.
+
+
+# 8. DEFECT DOJO
+
+upload_to_defectdojo:
+  stage: upload_results
+  image: python:3.9
+  script:
+    - pip install requests
+    - python3 upload_reports.py gitleaks-report.json
+    - python3 upload_reports.py report.json
+    - python3 upload_reports.py snyk-report.json
+    # (Add more as needed)
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+  when: always
+  needs: [gitleaks_scan, trivy-sca, snyk-sast]
+  allow_failure: true

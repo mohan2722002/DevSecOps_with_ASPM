@@ -3,8 +3,12 @@ stages:
 zap_dast_scan:
   stage: dast
   image: zaproxy/zap-stable:latest
+  tags:
+    - centos   
   variables:
-    APP_URL: http://your-application:8080  # Replace with correct hostname/port
+    APP_URL: https://localhost:80
+    APP_URL: http://localhost:8888
+    APP_URL: http://localhost:80  # Replace with correct hostname/port
   script:
     - echo "Starting ZAP DAST scan against ${APP_URL}"
     - zap-baseline.py -t ${APP_URL} -r zap_report.html

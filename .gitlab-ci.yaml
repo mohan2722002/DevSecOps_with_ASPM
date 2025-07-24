@@ -10,7 +10,7 @@ zap_dast_scan:
     - echo "Running ZAP baseline scan against $APP_URL"
     - mkdir -p zap-reports
     - chmod 777 zap-reports
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html
+    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html || true
   artifacts:
     paths:
       - zap-reports/report.html

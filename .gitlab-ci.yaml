@@ -1,5 +1,7 @@
+stages:
+  - secret_scan
 gitleaks_scan:
-  stage: security
+  stage: secret_scan
   image:
     name: zricethezav/gitleaks
     entrypoint: [""]

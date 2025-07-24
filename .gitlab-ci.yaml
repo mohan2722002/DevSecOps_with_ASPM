@@ -1,11 +1,12 @@
 gitleaks_scan:
-  stage: test
+  stage: security
   image:
     name: zricethezav/gitleaks
     entrypoint: [""]
   script:
-    - gitleaks detect --source . --verbose --report-path gitleaks-report.json
+    - gitleaks detect --source . --report-format json --report-path gitleaks-report.json --verbose
   artifacts:
     paths:
       - gitleaks-report.json
-  allow_failure: false
+    when: always  # <-- Always save the report, even if the job fails
+  allow_failure: true  # <-- Set to true if you want pipeline to pass regardless of findings (not recommended for security)

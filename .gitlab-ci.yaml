@@ -1,10 +1,37 @@
-trivy-sca:
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache curl
-    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+stages:
+  - build
+  - scan
+  
+variables:
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  - docker info
+
+build:
+  stage: build
+  tags:
+    - centos  # Make sure your local GitLab runner is tagged this way
   script:
-    - trivy fs --format json --output report.json .
-  artifacts:
-    paths:
-      - report.json
+    - echo "🚧 Building containers using Docker Compose..."
+    - docker compose -f .build/docker-compose.yml up -d --no-cache
+
+# Add this to your existing stages
+
+
+# Simple image vulnerability scanning
+scan_images:
+  stage: scan
+  tags:
+    - centos
+  image: aquasec/trivy:latest
+  script:
+    - echo "🔍 Scanning Docker images..."
+    # Get all built images and scan them
+    - |
+      for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>"); do
+        echo "Scanning: $image"
+        trivy image --severity HIGH,CRITICAL $image
+      done
+  dependencies:
+    - build

@@ -1,5 +1,5 @@
 stages:
-  - build
+  - building
   - scan
   
 variables:
@@ -9,7 +9,7 @@ before_script:
   - docker info
 
 build:
-  stage: build
+  stage: building
   tags:
     - centos  # Make sure your local GitLab runner is tagged this way
   script:

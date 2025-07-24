@@ -5,7 +5,9 @@ zap_dast_scan:
   tags:
     - centos
   variables:
-    APP_URL: "http://localhost:80"  # Or correct URL/protocol/port for your app
+    APP_URL: "https://localhost:8888"
+    APP_URL: "http://localhost:80"
+    APP_URL: "https://localhost:80"  # Or correct URL/protocol/port for your app
   script:
     - echo "Running ZAP baseline scan against $APP_URL"
     - mkdir -p zap-reports

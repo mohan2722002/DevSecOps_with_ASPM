@@ -1,5 +1,5 @@
 stages:
-  - secret_scan
+  - secret_scanning
   - sca
   - sast
   - build
@@ -15,7 +15,7 @@ before_script:
 
 # Secret Scanning Stage
 secret_scan:
-  stage: secret_scan
+  stage: secret_scanning
   image: zricethezav/gitleaks:latest
   tags:
     - centos
@@ -180,7 +180,7 @@ security-summary:
   script:
     - echo "📊 Security Scan Summary Report"
     - echo "================================"
-    - echo "🔐 Secret Scan:" "$([ -f gitleaks_report.json ] && echo 'Complete' || echo 'N/A')"
+    - echo "🔐 Secret Scanning:" "$([ -f gitleaks_report.json ] && echo 'Complete' || echo 'N/A')"
     - echo "📦 SCA Scan:" "$([ -f sca-report.json ] && echo 'Complete' || echo 'N/A')"
     - echo "🔍 SAST Scan:" "$([ -f snyk-sast-report.json ] && echo 'Complete' || echo 'N/A')"
     - echo "🖼️ Image Scan:" "$([ -d image-reports ] && echo 'Complete' || echo 'N/A')"
@@ -189,7 +189,7 @@ security-summary:
     - echo "================================"
     - echo "✅ DevSecOps Pipeline Complete!"
   dependencies:
-    - secret_scan
+    - secret_scanning
     - trivy-sca
     - snyk-sast
     - trivy-image-scan

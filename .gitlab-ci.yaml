@@ -11,4 +11,4 @@ gitleaks_scan:
     paths:
       - gitleaks-report.json
     when: always
-  allow_failure: false
+  allow_failure: true

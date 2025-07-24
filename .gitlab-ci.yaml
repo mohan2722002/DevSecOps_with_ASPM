@@ -16,16 +16,15 @@ build:
     - echo "🚧 Building containers using Docker Compose..."
     - docker compose -f .build/docker-compose.yml up -d 
 
-# Add this to your existing stages
-
 
 # Simple image vulnerability scanning
 scan_images:
   stage: scan
   tags:
     - centos
-  image: aquasec/trivy:latest
   script:
+    - echo "🔍 Installing Trivy..."
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
     - echo "🔍 Scanning Docker images..."
     # Get all built images and scan them
     - |

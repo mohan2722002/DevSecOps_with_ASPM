@@ -1,18 +1,208 @@
+# GitLab CI/CD Job for Gitleaks Secret Scanning
+# Add this to your .gitlab-ci.yml file
+
 stages:
-  - secret_scan
-secret_scan:
-  stage: secret_scan
-  image: zricethezav/gitleaks:latest
-  tags:
-    - centos
+  - security
+  - build
+  - test
+  - deploy
+
+variables:
+  GITLEAKS_VERSION: "8.18.4"
+  GITLEAKS_CONFIG_URL: "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml"
+
+# Basic Gitleaks job for current commit
+gitleaks-scan:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks
+    - mv gitleaks /usr/local/bin/
   script:
-    - echo "🔍 Starting Gitleaks secret scan..."
-    - gitleaks detect --source "$CI_PROJECT_DIR" --no-git --report-format json --report-path "$CI_PROJECT_DIR/gitleaks_report.json"
-    - echo "📄 Checking report:"
-    - ls -la "$CI_PROJECT_DIR/gitleaks_report.json" || echo "❌ Report not found"
+    # Download default config (optional - gitleaks has built-in rules)
+    - curl -o gitleaks.toml $GITLEAKS_CONFIG_URL || echo "Using built-in config"
+    # Scan current commit
+    - gitleaks detect --source . --report-format json --report-path gitleaks-report.json --verbose
+    # Also generate SARIF format for GitLab Security Dashboard
+    - gitleaks detect --source . --report-format sarif --report-path gl-secret-detection-report.json --verbose
+  artifacts:
+    reports:
+      # GitLab Security Dashboard integration
+      secret_detection: gl-secret-detection-report.json
+    paths:
+      - gitleaks-report.json
+      - gl-secret-detection-report.json
+    expire_in: 1 week
+    when: always
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Historical scan job (runs on schedule or manually)
+gitleaks-full-history:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks
+    - mv gitleaks /usr/local/bin/
+    # Fetch full git history
+    - git fetch --unshallow || true
+  script:
+    - curl -o gitleaks.toml $GITLEAKS_CONFIG_URL || echo "Using built-in config"
+    # Scan entire git history
+    - gitleaks detect --source . --log-level info --report-format json --report-path gitleaks-full-history.json --verbose
   artifacts:
     paths:
-      - gitleaks_report.json
+      - gitleaks-full-history.json
+    expire_in: 30 days
     when: always
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: manual
+      allow_failure: true
+
+# Pre-commit hook simulation (fast scan)
+gitleaks-pre-commit:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks
+    - mv gitleaks /usr/local/bin/
+  script:
+    # Quick scan of staged changes only
+    - |
+      if [ "$CI_PIPELINE_SOURCE" == "merge_request_event" ]; then
+        # For MR, scan changes between target branch and current branch
+        git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+        gitleaks protect --source . --staged --verbose
+      else
+        # For regular commits, scan staged changes
+        gitleaks protect --source . --verbose
+      fi
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Custom configuration example
+gitleaks-custom-config:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks
+    - mv gitleaks /usr/local/bin/
+  script:
+    # Create custom config or use project-specific config
+    - |
+      if [ -f ".gitleaks.toml" ]; then
+        echo "Using project-specific gitleaks config"
+        CONFIG_FLAG="--config .gitleaks.toml"
+      else
+        echo "Using default gitleaks config"
+        CONFIG_FLAG=""
+      fi
+    # Run scan with custom configuration
+    - gitleaks detect --source . $CONFIG_FLAG --report-format json --report-path gitleaks-custom.json --verbose
+    # Generate summary
+    - |
+      if [ -f "gitleaks-custom.json" ]; then
+        echo "=== GITLEAKS SCAN SUMMARY ==="
+        echo "Secrets found: $(jq length gitleaks-custom.json)"
+        echo "============================="
+        if [ "$(jq length gitleaks-custom.json)" -gt 0 ]; then
+          echo "⚠️  Secrets detected! Check the artifacts for details."
+          jq -r '.[] | "File: \(.File) | Line: \(.StartLine) | Type: \(.RuleID)"' gitleaks-custom.json
+          exit 1
+        else
+          echo "✅ No secrets found!"
+        fi
+      fi
+  artifacts:
+    paths:
+      - gitleaks-custom.json
     expire_in: 1 week
-  allow_failure: true
+    when: always
+  allow_failure: false
+  rules:
+    - exists:
+        - .gitleaks.toml
+    - when: manual
+
+# Job with baseline/allowlist support
+gitleaks-with-baseline:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl jq
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks
+    - mv gitleaks /usr/local/bin/
+  script:
+    # Generate baseline if it doesn't exist
+    - |
+      if [ ! -f ".gitleaks-baseline.json" ]; then
+        echo "Generating baseline for existing secrets..."
+        gitleaks detect --source . --report-format json --report-path .gitleaks-baseline.json --verbose || true
+        echo "Baseline generated. Review and commit .gitleaks-baseline.json to establish baseline."
+      fi
+    # Run scan with baseline
+    - |
+      if [ -f ".gitleaks-baseline.json" ]; then
+        gitleaks detect --source . --baseline-path .gitleaks-baseline.json --report-format json --report-path gitleaks-new-findings.json --verbose
+      else
+        gitleaks detect --source . --report-format json --report-path gitleaks-new-findings.json --verbose
+      fi
+  artifacts:
+    paths:
+      - gitleaks-new-findings.json
+      - .gitleaks-baseline.json
+    expire_in: 1 week
+    when: always
+  allow_failure: false
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: manual
+
+# Integration with other security tools
+security-scan:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl jq
+    - curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+    - chmod +x gitleaks && mv gitleaks /usr/local/bin/
+  script:
+    # Run gitleaks as part of broader security scanning
+    - echo "Running secret detection with Gitleaks..."
+    - gitleaks detect --source . --report-format sarif --report-path gl-secret-detection-report.json --verbose
+    
+    # You can add other security tools here
+    # - echo "Running SAST scan..."
+    # - semgrep --config=auto --sarif --output=gl-sast-report.json .
+    
+    # Generate summary report
+    - |
+      echo "=== SECURITY SCAN SUMMARY ===" > security-summary.txt
+      if [ -f "gl-secret-detection-report.json" ]; then
+        SECRET_COUNT=$(jq '.runs[0].results | length' gl-secret-detection-report.json)
+        echo "Secrets found: $SECRET_COUNT" >> security-summary.txt
+      fi
+      echo "========================" >> security-summary.txt
+      cat security-summary.txt
+  artifacts:
+    reports:
+      secret_detection: gl-secret-detection-report.json
+    paths:
+      - security-summary.txt
+    expire_in: 1 week
+    when: always
+  allow_failure: false

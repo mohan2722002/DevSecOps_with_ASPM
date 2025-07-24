@@ -1,6 +1,6 @@
 stages:
   - building
-  - scan
+  - scans
   
 variables:
   DOCKER_TLS_CERTDIR: ""
@@ -19,7 +19,7 @@ build:
 
 # Simple image vulnerability scanning
 trivy-scan:
-  stage: scan
+  stage: scans
   tags:
     - centos
   image: aquasec/trivy:latest

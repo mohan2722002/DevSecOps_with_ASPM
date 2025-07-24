@@ -48,9 +48,12 @@ trivy-scan:
 # This would be CONTAINER scanning
 container-runtime-scan:
   stage: runtime-security
+  tags:
+    - centos
   script:
     - |
-      # Scan running containers
       for container in $(docker ps --format "{{.ID}}"); do
         trivy container $container
       done
+  dependencies:
+    - build

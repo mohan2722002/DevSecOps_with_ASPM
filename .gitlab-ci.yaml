@@ -22,9 +22,8 @@ trivy-image-scan:
   stage: scan
   tags:
     - centos
-  image: alpine:latest
   before_script:
-    - apk add --no-cache curl
+    - echo "🔍 Installing Trivy..."
     - mkdir -p ./bin
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b ./bin
     - export PATH="$PWD/bin:$PATH"
@@ -33,7 +32,7 @@ trivy-image-scan:
     - |
       for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>"); do
         echo "Scanning: $image"
-        trivy image --format json --output "$(echo $image | tr ':/' '--')-report.json" $image
+        ./bin/trivy image --format json --output "$(echo $image | tr ':/' '--')-report.json" $image
       done
   artifacts:
     paths:

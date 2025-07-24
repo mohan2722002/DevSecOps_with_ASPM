@@ -1,4 +1,4 @@
-[[allowlist]]
+[allowlist]
 description = "Training/demo keys"
 paths = [
   "src/includes/hints/**",

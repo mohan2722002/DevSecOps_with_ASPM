@@ -1,22 +1,15 @@
 stages:
   - scan
-
-variables:
-  DOCKER_TLS_CERTDIR: ""
-  APP_URL: "https://localhost:80"   # Adjust this port to match your app
-
-before_script:
-  - docker info
-
 zap_dast_scan:
   stage: scan
   tags:
     - centos
+  variables:
+    APP_URL: "http://localhost:80"  # Or correct URL/protocol/port for your app
   script:
-    - echo "Pulling the latest ZAP Docker image..."
-    - docker pull zaproxy/zap-stable:latest
     - echo "Running ZAP baseline scan against $APP_URL"
     - mkdir -p zap-reports
+    - chmod 777 zap-reports
     - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html
   artifacts:
     paths:

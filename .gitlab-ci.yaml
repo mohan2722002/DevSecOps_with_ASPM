@@ -1,7 +1,7 @@
 stages:
   - building
   - scan
-  
+  - runtime-security
 variables:
   DOCKER_TLS_CERTDIR: ""
 
@@ -43,3 +43,14 @@ trivy-scan:
     expire_in: 1 week
   dependencies:
     - build
+
+
+# This would be CONTAINER scanning
+container-runtime-scan:
+  stage: runtime-security
+  script:
+    - |
+      # Scan running containers
+      for container in $(docker ps --format "{{.ID}}"); do
+        trivy container $container
+      done

@@ -51,9 +51,12 @@ container-runtime-scan:
   tags:
     - centos
   script:
+    - echo "🔍 Scanning running containers..."
     - |
       for container in $(docker ps --format "{{.ID}}"); do
-        trivy container $container
+        image=$(docker inspect $container --format='{{.Config.Image}}')
+        echo "Scanning container $container (image: $image)"
+        trivy image --severity HIGH,CRITICAL $image
       done
   dependencies:
     - build

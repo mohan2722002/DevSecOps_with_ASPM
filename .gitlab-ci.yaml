@@ -6,7 +6,6 @@ stages:
   - image_scan
   - container_security
   - dast
-  - upload_results
 
 variables:
   DOCKER_TLS_CERTDIR: ""
@@ -126,21 +125,3 @@ zap_dast_scan:
     expire_in: 1 week
 
 
-
-# 8. DEFECT DOJO
-
-upload_to_defectdojo:
-  stage: upload_results
-  image: python:3.9
-  script:
-    - pip install requests
-    - python3 upload_reports.py gitleaks-report.json
-    - python3 upload_reports.py report.json
-    - python3 upload_reports.py snyk-report.json
-    # (Add more as needed)
-  variables:
-    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
-    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-  when: always
-  needs: [gitleaks_scan, trivy-sca, snyk-sast]
-  allow_failure: true

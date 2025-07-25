@@ -130,10 +130,10 @@ zap_dast_scan:
 upload_to_defectdojo:
   stage: upload_results
   tags:
-    - dojo
-  image: python:3.9
+    - dojo  # Uses your shell executor runner
+  before_script:
+    - python3 -m pip install --user requests  # Install on system Python
   script:
-    - pip install requests
     - python3 upload_reports.py gitleaks-report.json
     - python3 upload_reports.py report.json
     - python3 upload_reports.py snyk-report.json
@@ -141,6 +141,7 @@ upload_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: "http://localhost:8080"  # Local DefectDojo instance
   when: always
   needs: [gitleaks_scan, trivy-sca, snyk-sast]
   allow_failure: true

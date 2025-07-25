@@ -129,6 +129,8 @@ zap_dast_scan:
 
 upload_to_defectdojo:
   stage: upload_results
+  tags:
+    - dojo
   image: python:3.9
   script:
     - pip install requests
@@ -142,5 +144,3 @@ upload_to_defectdojo:
   when: always
   needs: [gitleaks_scan, trivy-sca, snyk-sast]
   allow_failure: true
-
-

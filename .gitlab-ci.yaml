@@ -2,7 +2,7 @@ stages:
   - secret_scan
   - sca
   - sast
-  - building
+  - build
   - image_scan
   - container_security
   - dast
@@ -10,13 +10,13 @@ stages:
 
 variables:
   DOCKER_TLS_CERTDIR: ""
+  APP_URL: "http://localhost:80"
+  DEFECTDOJO_URL: "http://localhost:8080"
 
 # 1. Secret Scanning
 gitleaks_scan:
   stage: secret_scan
-  image:
-    name: zricethezav/gitleaks
-    entrypoint: [""]
+  image: zricethezav/gitleaks
   script:
     - gitleaks detect --source . --report-format json --report-path gitleaks-report.json --verbose || true
   artifacts:
@@ -24,124 +24,120 @@ gitleaks_scan:
       - gitleaks-report.json
     when: always
 
-# 2. SCA (Software Composition Analysis)
-trivy-sca:
+# 2. Software Composition Analysis (SCA)
+trivy_sca:
   stage: sca
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache curl
-    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  image: aquasec/trivy:latest
   script:
-    - trivy fs --format json --output report.json .
+    - trivy fs --format json --output trivy-sca-report.json .
   artifacts:
     paths:
-      - report.json
+      - trivy-sca-report.json
+    when: always
 
-# 3. SAST (Static Application Security Testing)
-snyk-sast:
+# 3. Static Application Security Testing (SAST)
+snyk_sast:
   stage: sast
   image: node:18
-  before_script:
+  script:
     - npm install -g snyk snyk-to-html
-  script:
-    - snyk auth $SNYK_TOKEN
-    - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
+    - snyk auth "$SNYK_TOKEN"
+    - snyk code test --json-file=snyk-sast-report.json || echo "Snyk found issues"
   artifacts:
-    when: always
     paths:
-      - snyk-report.json
-    reports:
-      sast: snyk-report.json
+      - snyk-sast-report.json
+    when: always
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-# 4. Building Image
-build:
-  stage: building
+# 4. Build Docker Images
+build_image:
+  stage: build
   tags:
-    - centos
+    - docker
   script:
-    - echo "🚧 Building containers using Docker Compose..."
     - docker compose -f .build/docker-compose.yml up -d
+  artifacts:
+    paths:
+      - .build/docker-compose.yml
 
-# 5. Image Scanning
-trivy-scan:
+# 5. Image Vulnerability Scanning
+trivy_image_scan:
   stage: image_scan
   tags:
-    - centos
+    - docker
   script:
-    - echo "🔍 Scanning Docker images..."
     - |
       IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
-      [ -z "$IMAGES" ] && { echo "❌ No images found"; exit 1; }
-     
-      mkdir -p reports && echo "📋 Scanning $(echo "$IMAGES" | wc -l) images"
-     
-      echo "$IMAGES" | while read image; do
-        echo "Scanning: $image"
+      if [ -z "$IMAGES" ]; then
+        echo "No images to scan"
+        exit 0
+      fi
+      mkdir -p image-reports
+      for image in $IMAGES; do
         trivy image --format json --severity HIGH,CRITICAL \
-          --output "reports/$(echo $image | tr ':/' '--').json" "$image"
+          --output "image-reports/$(echo $image | tr ':/' '__').json" "$image"
       done
-     
-      echo "✅ Scan complete. Reports in artifacts."
   artifacts:
     paths:
-      - reports/
-    expire_in: 1 week
+      - image-reports/
+    when: always
   dependencies:
-    - build
+    - build_image
 
-# 6. Container Security Scanning
-container-runtime-scan:
+# 6. Container Runtime Security Scanning
+runtime_scan:
   stage: container_security
   tags:
-    - centos
+    - docker
   script:
-    - echo "🔍 Scanning running containers..."
     - |
-      for container in $(docker ps --format "{{.ID}}"); do
-        image=$(docker inspect $container --format='{{.Config.Image}}')
-        echo "Scanning container $container (image: $image)"
-        trivy image --severity HIGH,CRITICAL $image
+      for cid in $(docker ps -q); do
+        img=$(docker inspect $cid --format='{{.Config.Image}}')
+        trivy image --severity HIGH,CRITICAL "$img" > "container-security-$cid.json" || true
       done
-  dependencies:
-    - build
-
-# 7. DAST (Dynamic Application Security Testing)
-zap_dast_scan:
-  stage: dast
-  tags:
-    - centos
-  variables:
-    APP_URL: "http://localhost:80"
-  script:
-    - echo "Running ZAP baseline scan against $APP_URL"
-    - mkdir -p zap-reports
-    - chmod 777 zap-reports
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html || true
   artifacts:
     paths:
-      - zap-reports/report.html
-    expire_in: 1 week
+      - container-security-*.json
+    when: always
+  dependencies:
+    - build_image
 
-    # 8.dojo
+# 7. Dynamic Application Security Testing (DAST)
+zap_dast:
+  stage: dast
+  image: owasp/zap2docker-stable
+  script:
+    - mkdir -p zap-reports
+    - zap-baseline.py -t "$APP_URL" -r zap-reports/zap-report.html || true
+  artifacts:
+    paths:
+      - zap-reports/zap-report.html
+    when: always
 
-upload_to_defectdojo:
+# 8. Upload Results to DefectDojo
+upload_results:
   stage: upload_results
   tags:
-    - dojo  # Uses your shell executor runner
+    - dojo
+  image: python:3.11
   before_script:
-    - python3 -m pip install --user requests  # Install on system Python
+    - pip install --no-cache-dir requests
   script:
     - python3 upload_reports.py gitleaks-report.json
-    - python3 upload_reports.py report.json
-    - python3 upload_reports.py snyk-report.json
-    # (Add more as needed)
+    - python3 upload_reports.py trivy-sca-report.json
+    - python3 upload_reports.py snyk-sast-report.json
+    - python3 upload_reports.py zap-reports/zap-report.html
+    # Add any additional report uploads as needed
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: "http://localhost:8080"  # Local DefectDojo instance
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
   when: always
-  needs: [gitleaks_scan, trivy-sca, snyk-sast]
+  needs:
+    - gitleaks_scan
+    - trivy_sca
+    - snyk_sast
+    - zap_dast
   allow_failure: true

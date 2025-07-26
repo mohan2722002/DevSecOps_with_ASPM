@@ -13,7 +13,6 @@ variables:
   APP_URL: "http://localhost:80"
   DEFECTDOJO_URL: "http://localhost:8080"
 
-# 1. Secret Scanning
 gitleaks_scan:
   stage: secret_scan
   image: zricethezav/gitleaks
@@ -23,6 +22,7 @@ gitleaks_scan:
     paths:
       - gitleaks-report.json
     when: always
+
 
 # 2. Software Composition Analysis (SCA)
 trivy_sca:

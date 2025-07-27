@@ -55,6 +55,7 @@ snyk-sast:
       - snyk-report.json
     reports:
       sast: snyk-report.json
+
 # 4. Building Image
 build:
   stage: building
@@ -118,10 +119,13 @@ zap_dast_scan:
     - echo "Running ZAP baseline scan against $APP_URL"
     - mkdir -p zap-reports
     - chmod 777 zap-reports
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r report.html || true
+    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r zap-report.html || true
+    - echo "Converting ZAP HTML report to XML for DefectDojo compatibility..."
+    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -J zap-report.json || true
   artifacts:
     paths:
-      - zap-reports/report.html
+      - zap-reports/zap-report.html
+      - zap-reports/zap-report.json
     expire_in: 1 week
 
 # 8. DefectDojo Upload
@@ -135,6 +139,7 @@ upload_to_defectdojo:
     - |
       echo "Checking for report files..."
       ls -la *.json || echo "No JSON files found in current directory"
+      ls -la zap-reports/ || echo "No ZAP reports directory found"
       echo "Current directory contents:"
       ls -la
     - |
@@ -147,17 +152,24 @@ upload_to_defectdojo:
       fi
       
       if [ -f "report.json" ]; then
-        echo "Uploading trivy report..."
+        echo "Uploading trivy SCA report..."
         python3 upload_reports.py report.json
       else
         echo "report.json not found"
       fi
       
       if [ -f "snyk-report.json" ]; then
-        echo "Uploading snyk report..."
+        echo "Uploading snyk SAST report..."
         python3 upload_reports.py snyk-report.json
       else
-        echo "snyk-report.json not found - checking if snyk-sast job ran"
+        echo "snyk-report.json not found"
+      fi
+      
+      if [ -f "zap-reports/zap-report.json" ]; then
+        echo "Uploading ZAP DAST report..."
+        python3 upload_reports.py zap-reports/zap-report.json
+      else
+        echo "zap-report.json not found"
       fi
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
@@ -170,6 +182,14 @@ upload_to_defectdojo:
     - job: trivy-sca
       artifacts: true
     - job: snyk-sast
+      artifacts: true
+      optional: true
+    - job: trivy-scan
+      artifacts: true
+      optional: true
+    - job: container-runtime-scan
+      optional: true
+    - job: zap_dast_scan
       artifacts: true
       optional: true
   allow_failure: true

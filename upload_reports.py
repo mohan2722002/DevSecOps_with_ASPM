@@ -4,28 +4,31 @@ import sys
 
 # Map file names to DefectDojo scan types
 SCAN_TYPE_MAP = {
-    'gitleaks': 'Gitleaks Scan',
-    'report.json': 'Trivy Scan',  # Specifically for report.json from trivy-sca
-    'trivy': 'Trivy Scan',
-    'snyk': 'Snyk Scan', 
-    'zap': 'ZAP Scan',
-    # Extend as needed for more tools
+    'gitleaks-report.json': 'Gitleaks Scan',
+    'report.json': 'Trivy Scan',  # This is from trivy-sca
+    'snyk-report.json': 'Snyk Scan',
+    'zap-report.json': 'ZAP Scan',
 }
 
 def determine_scan_type(report_path):
     file_name = os.path.basename(report_path).lower()
     
     # Check for exact filename matches first
-    if file_name == 'report.json':
+    if file_name in SCAN_TYPE_MAP:
+        return SCAN_TYPE_MAP[file_name]
+    
+    # Check for keyword matches in filename
+    if 'gitleaks' in file_name:
+        return 'Gitleaks Scan'
+    elif 'snyk' in file_name:
+        return 'Snyk Scan'
+    elif 'zap' in file_name:
+        return 'ZAP Scan'
+    elif 'trivy' in file_name or file_name == 'report.json':
         return 'Trivy Scan'
     
-    # Then check for keyword matches
-    for keyword, scan_type in SCAN_TYPE_MAP.items():
-        if keyword in file_name:
-            return scan_type
-    
-    # List of valid DefectDojo scan types as fallback
-    return 'Trivy Scan'  # Default to Trivy since report.json is from Trivy
+    # Default fallback - should not happen with proper naming
+    return 'Trivy Scan'
 
 def upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path):
     headers = {'Authorization': f'Token {api_key}'}
@@ -48,9 +51,9 @@ def upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path):
         response = requests.post(url, headers=headers, files=files, data=data)
     
     if response.status_code == 201:
-        print(f'Successfully uploaded {report_path} as {scan_type}')
+        print(f'✅ Successfully uploaded {report_path} as {scan_type}')
     else:
-        print(f'Failed to upload {report_path} - {response.status_code}: {response.text}')
+        print(f'❌ Failed to upload {report_path} as {scan_type} - {response.status_code}: {response.text}')
 
 def main():
     if len(sys.argv) < 2:
@@ -72,6 +75,7 @@ def main():
             continue
         
         scan_type = determine_scan_type(report_path)
+        print(f'📄 Processing {report_path} as {scan_type}')
         upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path)
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # DevSecOps Security Pipeline
 
-A comprehensive automated security testing pipeline that integrates multiple security scanning tools across the entire software development lifecycle. This pipeline was developed over 6 days to implement industry-standard security practices in CI/CD workflows.
+A comprehensive automated security testing pipeline that integrates multiple security scanning tools across the entire software development lifecycle.
 
 ## Overview
 
@@ -13,6 +13,39 @@ The security pipeline is structured into eight sequential stages, each targeting
 ```
 Secret Scan → SCA → SAST → Building → Image Scan → Container Security → DAST → Upload Results
 ```
+
+## Pipeline Execution Workflow
+
+The pipeline is triggered automatically on code commits and executes the following workflow:
+
+1. Source code is checked out and prepared for scanning
+2. Security scans are performed in parallel where possible
+3. Application is built and deployed for dynamic testing
+4. All security findings are collected and normalized
+5. Results are uploaded to DefectDojo for centralized tracking
+
+## Technology Stack
+
+### Security Tools
+- **GitLeaks**: Secret detection and credential scanning
+- **Trivy**: Vulnerability scanning for containers and filesystems
+- **Snyk**: Static code analysis and dependency vulnerability detection
+- **OWASP ZAP**: Dynamic application security testing
+- **DefectDojo**: Centralized vulnerability management platform
+
+### Infrastructure
+- **GitLab CI/CD**: Pipeline orchestration and execution
+- **Docker**: Containerization and image management
+- **Python**: Custom scripting for report handling and API integration
+
+## Integration Points
+
+The pipeline integrates with multiple external systems:
+
+- **Version Control**: GitLab repository for source code management
+- **Container Registry**: Docker Hub and private registries for image storage
+- **Vulnerability Database**: Multiple CVE databases through integrated tools
+- **Security Platform**: DefectDojo for centralized vulnerability management
 
 ## Pipeline Stages
 
@@ -54,7 +87,6 @@ Secret Scan → SCA → SAST → Building → Image Scan → Container Security 
 
 ### 7. Dynamic Application Security Testing (DAST)
 - **Tool Used**: OWASP ZAP
-- **Purpose**: Running applications are tested for runtime vulnerabilities through active penetration testing
 - **Output**: HTML and JSON reports containing discovered vulnerabilities
 - **Implementation**: ZAP baseline scan is executed against the deployed application with network-level access
 
@@ -64,108 +96,17 @@ Secret Scan → SCA → SAST → Building → Image Scan → Container Security 
 - **Output**: Consolidated security dashboard with all findings
 - **Implementation**: Reports from all previous stages are automatically uploaded to DefectDojo instance via REST API
 
-## Technology Stack
-
-### Security Tools
-- **GitLeaks**: Secret detection and credential scanning
-- **Trivy**: Vulnerability scanning for containers and filesystems
-- **Snyk**: Static code analysis and dependency vulnerability detection
-- **OWASP ZAP**: Dynamic application security testing
-- **DefectDojo**: Centralized vulnerability management platform
-
-### Infrastructure
-- **GitLab CI/CD**: Pipeline orchestration and execution
-- **Docker**: Containerization and image management
-- **Python**: Custom scripting for report handling and API integration
 
 ## Test Application
 
 This security pipeline was validated using **OWASP Mutillidae II**, a deliberately vulnerable web application designed for security testing and training purposes.
 
 - **Application Repository**: https://github.com/webpwnized/mutillidae
-- **Purpose**: Mutillidae provides a realistic target with intentional vulnerabilities across multiple categories
-- **Implementation**: The application was containerized and deployed as part of the pipeline testing process
 - **Results**: All security scan results and vulnerability findings demonstrated in this project were generated against the Mutillidae application
 
-Mutillidae includes vulnerabilities from the OWASP Top 10 and beyond, making it an ideal candidate for comprehensive security pipeline validation. The application's diverse vulnerability landscape allowed thorough testing of each pipeline stage's detection capabilities.
-
-## Report Generation
-
-Multiple report formats are generated throughout the pipeline:
-
-- **JSON Reports**: Machine-readable format for automated processing
-- **HTML Reports**: Human-readable format for manual review
-- **GitLab Security Reports**: Native GitLab security dashboard integration
-
-All reports are preserved as pipeline artifacts with configurable retention periods.
-
-## Configuration Requirements
-
-### Environment Variables
-- `SNYK_TOKEN`: Authentication token for Snyk scanning
-- `DEFECTDOJO_API_KEY`: API key for DefectDojo integration
-- `DEFECTDOJO_ENGAGEMENT_ID`: Target engagement ID in DefectDojo
-- `DEFECTDOJO_API_URL`: DefectDojo instance endpoint
-
-### Pipeline Customization
-- Scan severity levels can be adjusted (currently set to HIGH and CRITICAL)
-- Target application URL is configurable for DAST scanning
-- Report retention periods are customizable per stage
-
-## Pipeline Execution Workflow
-
-The pipeline is triggered automatically on code commits and executes the following workflow:
-
-1. Source code is checked out and prepared for scanning
-2. Security scans are performed in parallel where possible
-3. Application is built and deployed for dynamic testing
-4. All security findings are collected and normalized
-5. Results are uploaded to DefectDojo for centralized tracking
-
-## Key Features
-
-- **Comprehensive Coverage**: Security testing spans the entire SDLC
-- **Automated Execution**: No manual intervention required
-- **Centralized Reporting**: All findings aggregated in DefectDojo
-- **Flexible Configuration**: Easily adaptable to different project requirements
-- **Artifact Preservation**: All reports stored for audit and compliance
-- **Failure Tolerance**: Pipeline continues execution even if individual scans fail
-
-## Project Implementation Results
-
-This 6-day implementation effort resulted in:
-
-- A fully automated security pipeline covering 8 security domains
-- Integration of 5 industry-standard security tools
-- Automated vulnerability management workflow
-- Comprehensive security reporting and tracking
-- Production-ready DevSecOps implementation
-
-## Implementation Instructions
-
-1. **Environment Setup**: Configure required environment variables in GitLab CI/CD settings
-2. **DefectDojo Deployment**: Deploy DefectDojo instance and configure API access
-3. **Test Application Deployment**: Deploy OWASP Mutillidae or your target application
-4. **Pipeline Integration**: Add the pipeline YAML configuration to your GitLab repository
-5. **Execution**: Pipeline runs automatically on code changes
-6. **Results Monitoring**: Review security findings in DefectDojo dashboard
-
-## Pipeline Maintenance
-
-Regular maintenance activities include:
-
-- Updating security tool versions to latest releases
-- Reviewing and tuning scan configurations based on findings
-- Managing DefectDojo engagement lifecycle and user access
-- Monitoring pipeline performance metrics and execution times
-- Analyzing false positive rates and adjusting tool configurations
 
 ## Technical Specifications
 
-### Execution Environment
-- **GitLab Runner Tags**: CentOS-based runners for container operations
-- **Docker Network**: Host networking for DAST scanning capabilities
-- **Resource Requirements**: Sufficient storage for artifact retention and processing
 
 ### Security Considerations
 - All sensitive credentials are managed through GitLab CI/CD variables
@@ -173,13 +114,6 @@ Regular maintenance activities include:
 - Report data is handled according to organizational security policies
 - Container images are pulled from trusted registries only
 
-## Integration Points
 
-The pipeline integrates with multiple external systems:
-
-- **Version Control**: GitLab repository for source code management
-- **Container Registry**: Docker Hub and private registries for image storage
-- **Vulnerability Database**: Multiple CVE databases through integrated tools
-- **Security Platform**: DefectDojo for centralized vulnerability management
 
 This DevSecOps pipeline represents a comprehensive approach to automated security testing, implementing industry best practices for secure software development and establishing a foundation for continuous security improvement.

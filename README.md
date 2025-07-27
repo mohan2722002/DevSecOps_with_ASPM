@@ -1,101 +1,185 @@
-# OWASP Mutillidae II
+# DevSecOps Security Pipeline
 
-## Project Announcements
+A comprehensive automated security testing pipeline that integrates multiple security scanning tools across the entire software development lifecycle. This pipeline was developed over 6 days to implement industry-standard security practices in CI/CD workflows.
 
-* **Twitter**: [https://twitter.com/webpwnized](https://twitter.com/webpwnized)
+## Overview
 
-## Tutorials
+This project implements a complete DevSecOps pipeline that performs automated security scanning at every stage of the development process. The pipeline integrates eight distinct security scanning stages, from secret detection to dynamic application security testing, with automated reporting to DefectDojo for centralized vulnerability management.
 
-* **YouTube**: [https://www.youtube.com/user/webpwnized](https://www.youtube.com/user/webpwnized)
+## Pipeline Architecture
 
-## Installation on Docker
+The security pipeline is structured into eight sequential stages, each targeting specific security aspects:
 
-The following video tutorials explain how to bring up Mutillidae on a set of 5 containers running Apache/PHP, MySQL, OpenLDAP, PHPMyAdmin, and PHPLDAPAdmin:
-* **YouTube**: [How to Install Docker on Ubuntu](https://www.youtube.com/watch?v=Y_2JVREtDFk)
-* **YouTube**: [How to Run Mutillidae on Docker](https://www.youtube.com/watch?v=9RH4l8ff-yg)
-
-## TLDR
-
-```bash
-git clone https://github.com/webpwnized/mutillidae-docker.git
-cd mutillidae-docker
-docker compose -f .build/docker-compose.yml up --build --detach
+```
+Secret Scan → SCA → SAST → Building → Image Scan → Container Security → DAST → Upload Results
 ```
 
-Generate the database with the first link in the warning webpage.
+## Pipeline Stages
 
-## Important Information
+### 1. Secret Scanning
+- **Tool Used**: GitLeaks
+- **Purpose**: Source code is scanned for hardcoded secrets, API keys, and sensitive credentials
+- **Output**: JSON report containing detected secrets and their locations
+- **Implementation**: The entire repository is analyzed using GitLeaks' detection engine with verbose logging enabled
 
-The web site assumes the user will access the site using domain mutillidae.localhost. The domain can be configured in the users local hosts file.
+### 2. Software Composition Analysis (SCA)
+- **Tool Used**: Trivy
+- **Purpose**: Dependencies and third-party libraries are analyzed for known vulnerabilities
+- **Output**: Comprehensive JSON report of vulnerable components
+- **Implementation**: The file system is scanned to identify all dependencies and cross-referenced against vulnerability databases
 
-## Instructions
+### 3. Static Application Security Testing (SAST)
+- **Tool Used**: Snyk
+- **Purpose**: Source code is analyzed for security vulnerabilities and coding flaws
+- **Output**: JSON report with identified code-level security issues
+- **Implementation**: Code is authenticated with Snyk and analyzed for security patterns and anti-patterns
 
-There are five containers in this project. 
+### 4. Application Building
+- **Tool Used**: Docker Compose
+- **Purpose**: Application containers are built from source code
+- **Output**: Docker images ready for deployment
+- **Implementation**: Multi-container applications are built using Docker Compose configuration files
 
-- **www** - Apache, PHP, Mutillidae source code. The web site is exposed on ports 80,443, and 8080.
-- **database** - The MySQL database. The database is not exposed externally, but feel free to modify the docker file to expose the database.
-- **database_admin** - The PHPMyAdmin console. The console is exposed on port 81.
-- **ldap** - The OpenLDAP directory. The directory is exposed on port 389 to allow import of the mutillidae.ldif file.
-- **ldap_admin** - The PHPLDAPAdmin console. The console is exposed on port 82.
+### 5. Container Image Scanning
+- **Tool Used**: Trivy
+- **Purpose**: Built Docker images are scanned for vulnerabilities in base images and installed packages
+- **Output**: Individual JSON reports for each scanned image
+- **Implementation**: All built images are identified and scanned for HIGH and CRITICAL severity vulnerabilities
 
-The Dockerfile files in each directory contain the instructions to build each container. The docker-compose.yml file contains the instructions to set up networking for the container, create volumes, and kick off the builds specified in the Dockerfile files.
+### 6. Container Runtime Security
+- **Tool Used**: Trivy
+- **Purpose**: Running containers are assessed for runtime security risks
+- **Output**: Real-time security assessment of active containers
+- **Implementation**: Currently running containers are inspected and their base images are security-scanned
 
-### Building the Containers
+### 7. Dynamic Application Security Testing (DAST)
+- **Tool Used**: OWASP ZAP
+- **Purpose**: Running applications are tested for runtime vulnerabilities through active penetration testing
+- **Output**: HTML and JSON reports containing discovered vulnerabilities
+- **Implementation**: ZAP baseline scan is executed against the deployed application with network-level access
 
-To build the containers, if necessary, and bring the containers up, run the following command.
+### 8. Results Aggregation and Upload
+- **Tool Used**: Custom Python Script + DefectDojo API
+- **Purpose**: All security scan results are centralized in DefectDojo for unified vulnerability management
+- **Output**: Consolidated security dashboard with all findings
+- **Implementation**: Reports from all previous stages are automatically uploaded to DefectDojo instance via REST API
 
-```bash
-git clone https://github.com/webpwnized/mutillidae-docker.git
-cd mutillidae-docker
-docker compose -f .build/docker-compose.yml up --build --detach
-```
-### Website URL
+## Technology Stack
 
-The web application should be running at localhost
+### Security Tools
+- **GitLeaks**: Secret detection and credential scanning
+- **Trivy**: Vulnerability scanning for containers and filesystems
+- **Snyk**: Static code analysis and dependency vulnerability detection
+- **OWASP ZAP**: Dynamic application security testing
+- **DefectDojo**: Centralized vulnerability management platform
 
-[http://127.0.0.1/](http://127.0.0.1/)
+### Infrastructure
+- **GitLab CI/CD**: Pipeline orchestration and execution
+- **Docker**: Containerization and image management
+- **Python**: Custom scripting for report handling and API integration
 
-Note: The first time the webpage is accessed, a warning webpage will be displayed referencing the database cannot be found. This is the expected behaviour. Just use the link to "rebuild" the database and it will start working normally.
+## Test Application
 
-## TMI
+This security pipeline was validated using **OWASP Mutillidae II**, a deliberately vulnerable web application designed for security testing and training purposes.
 
-### Running Services
+- **Application Repository**: https://github.com/webpwnized/mutillidae
+- **Purpose**: Mutillidae provides a realistic target with intentional vulnerabilities across multiple categories
+- **Implementation**: The application was containerized and deployed as part of the pipeline testing process
+- **Results**: All security scan results and vulnerability findings demonstrated in this project were generated against the Mutillidae application
 
-Once the containers are running, the following services are available on localhost.
+Mutillidae includes vulnerabilities from the OWASP Top 10 and beyond, making it an ideal candidate for comprehensive security pipeline validation. The application's diverse vulnerability landscape allowed thorough testing of each pipeline stage's detection capabilities.
 
-- Port 80, 8080: Mutillidae HTTP web interface
-- Port 81: MySQL Admin HTTP web interface
-- Port 82: LDAP Admin web interface
-- Port 443: HTTPS web interface
-- Port 389: LDAP interface
+## Report Generation
 
-### Using a script to build the database
+Multiple report formats are generated throughout the pipeline:
 
-Alternatively, you can trigger the database build.
+- **JSON Reports**: Machine-readable format for automated processing
+- **HTML Reports**: Human-readable format for manual review
+- **GitLab Security Reports**: Native GitLab security dashboard integration
 
-```bash
-# Requesting Mutillidae database be built.
-curl http://127.0.0.1/set-up-database.php;
-```
+All reports are preserved as pipeline artifacts with configurable retention periods.
 
-### Populating the LDAP database
+## Configuration Requirements
 
-The LDAP database is empty upon build. Add users to the LDAP database using the following command.
+### Environment Variables
+- `SNYK_TOKEN`: Authentication token for Snyk scanning
+- `DEFECTDOJO_API_KEY`: API key for DefectDojo integration
+- `DEFECTDOJO_ENGAGEMENT_ID`: Target engagement ID in DefectDojo
+- `DEFECTDOJO_API_URL`: DefectDojo instance endpoint
 
-```bash
-# Install LDAP Utilities including ldapadd
-sudo apt-get update
-sudo apt-get install -y ldap-utils
+### Pipeline Customization
+- Scan severity levels can be adjusted (currently set to HIGH and CRITICAL)
+- Target application URL is configurable for DAST scanning
+- Report retention periods are customizable per stage
 
-# Add users to the LDAP database
-ldapadd -c -x -D "cn=admin,dc=mutillidae,dc=localhost" -w mutillidae -H ldap://localhost:389 -f .build/ldap/configuration/ldif/mutillidae.ldif
-```
+## Pipeline Execution Workflow
 
-### Using a script to test the web interface
+The pipeline is triggered automatically on code commits and executes the following workflow:
 
-You can test if the web site is responsive
+1. Source code is checked out and prepared for scanning
+2. Security scans are performed in parallel where possible
+3. Application is built and deployed for dynamic testing
+4. All security findings are collected and normalized
+5. Results are uploaded to DefectDojo for centralized tracking
 
-```bash
-# This should return the index.php home page content
-curl http://127.0.0.1:8888/;
-```
+## Key Features
+
+- **Comprehensive Coverage**: Security testing spans the entire SDLC
+- **Automated Execution**: No manual intervention required
+- **Centralized Reporting**: All findings aggregated in DefectDojo
+- **Flexible Configuration**: Easily adaptable to different project requirements
+- **Artifact Preservation**: All reports stored for audit and compliance
+- **Failure Tolerance**: Pipeline continues execution even if individual scans fail
+
+## Project Implementation Results
+
+This 6-day implementation effort resulted in:
+
+- A fully automated security pipeline covering 8 security domains
+- Integration of 5 industry-standard security tools
+- Automated vulnerability management workflow
+- Comprehensive security reporting and tracking
+- Production-ready DevSecOps implementation
+
+## Implementation Instructions
+
+1. **Environment Setup**: Configure required environment variables in GitLab CI/CD settings
+2. **DefectDojo Deployment**: Deploy DefectDojo instance and configure API access
+3. **Test Application Deployment**: Deploy OWASP Mutillidae or your target application
+4. **Pipeline Integration**: Add the pipeline YAML configuration to your GitLab repository
+5. **Execution**: Pipeline runs automatically on code changes
+6. **Results Monitoring**: Review security findings in DefectDojo dashboard
+
+## Pipeline Maintenance
+
+Regular maintenance activities include:
+
+- Updating security tool versions to latest releases
+- Reviewing and tuning scan configurations based on findings
+- Managing DefectDojo engagement lifecycle and user access
+- Monitoring pipeline performance metrics and execution times
+- Analyzing false positive rates and adjusting tool configurations
+
+## Technical Specifications
+
+### Execution Environment
+- **GitLab Runner Tags**: CentOS-based runners for container operations
+- **Docker Network**: Host networking for DAST scanning capabilities
+- **Resource Requirements**: Sufficient storage for artifact retention and processing
+
+### Security Considerations
+- All sensitive credentials are managed through GitLab CI/CD variables
+- API communications are secured with authentication tokens
+- Report data is handled according to organizational security policies
+- Container images are pulled from trusted registries only
+
+## Integration Points
+
+The pipeline integrates with multiple external systems:
+
+- **Version Control**: GitLab repository for source code management
+- **Container Registry**: Docker Hub and private registries for image storage
+- **Vulnerability Database**: Multiple CVE databases through integrated tools
+- **Security Platform**: DefectDojo for centralized vulnerability management
+
+This DevSecOps pipeline represents a comprehensive approach to automated security testing, implementing industry best practices for secure software development and establishing a foundation for continuous security improvement.

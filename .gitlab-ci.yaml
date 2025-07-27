@@ -108,7 +108,7 @@ container_runtime_scan:
   dependencies:
     - build
 
-# 7. DAST (Dynamic Application Security Testing)
+#7 DAST
 zap_dast_scan:
   stage: DAST
   tags:
@@ -116,38 +116,21 @@ zap_dast_scan:
   variables:
     APP_URL: "http://localhost:80"
   script:
-    - echo "Running ZAP baseline scan against $APP_URL"
+    - echo "Running ZAP full scan against $APP_URL"
     - mkdir -p zap-reports
     - chmod 777 zap-reports
-    # Generate HTML report
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -r zap-report.html || true
-    # Generate JSON report using ZAP full scan
-    - docker run --rm --network="host" -v $(pwd)/zap-reports:/zap/wrk/:rw zaproxy/zap-stable zap-baseline.py -t $APP_URL -J zap-report.json || true
-    # If JSON wasn't created, create a minimal JSON structure
-    - |
-      if [ ! -f "zap-reports/zap-report.json" ] || [ ! -s "zap-reports/zap-report.json" ]; then
-        echo "Creating JSON report from HTML..."
-        echo '{
-          "site": [
-            {
-              "@name": "'$APP_URL'",
-              "@host": "localhost",
-              "@port": "80",
-              "@ssl": "false",
-              "alerts": []
-            }
-          ],
-          "@version": "2.11.1",
-          "@generated": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
-        }' > zap-reports/zap-report.json
-      fi
+    - docker run --rm --network="host" \
+        -v $(pwd)/zap-reports:/zap/wrk/:rw \
+        zaproxy/zap-stable zap-full-scan.py \
+        -t $APP_URL -r zap-report.html -J zap-report.json || true
     - echo "ZAP scan complete. Checking generated files:"
     - ls -la zap-reports/
   artifacts:
     paths:
-      - zap-reports/zap-report.html
-      - zap-reports/zap-report.json
+      - zap-reports/
     expire_in: 1 week
+  dependencies:
+    - build
 
 # 8. DefectDojo Upload
 upload_to_defectdojo:
@@ -161,6 +144,7 @@ upload_to_defectdojo:
       echo "Checking for report files..."
       ls -la *.json || echo "No JSON files found in current directory"
       ls -la zap-reports/ || echo "No ZAP reports directory found"
+      ls -la reports/ || echo "No Trivy reports directory found"
       echo "Current directory contents:"
       ls -la
     - |
@@ -186,11 +170,25 @@ upload_to_defectdojo:
         echo "snyk-report.json not found"
       fi
       
+      # Upload Trivy image scan reports
+      if [ -d "reports" ]; then
+        echo "Uploading Trivy image scan reports..."
+        for report_file in reports/*.json; do
+          if [ -f "$report_file" ]; then
+            echo "Uploading $report_file..."
+            python3 upload_reports.py "$report_file"
+          fi
+        done
+      else
+        echo "No Trivy image scan reports directory found"
+      fi
+      
+      # Upload ZAP DAST report
       if [ -f "zap-reports/zap-report.json" ]; then
         echo "Uploading ZAP DAST report..."
         python3 upload_reports.py zap-reports/zap-report.json
       else
-        echo "zap-report.json not found"
+        echo "zap-report.json not found in zap-reports directory"
       fi
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY

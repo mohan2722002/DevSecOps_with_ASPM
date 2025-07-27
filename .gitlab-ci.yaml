@@ -52,9 +52,6 @@ snyk-sast:
       - snyk-report.json
     reports:
       sast: snyk-report.json
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # 4. Building Image
 build:
@@ -133,13 +130,44 @@ upload_to_defectdojo:
     - python3 -m pip install --upgrade pip
     - python3 -m pip install requests
   script:
-    - python3 upload_reports.py gitleaks-report.json
-    - python3 upload_reports.py report.json
-    - python3 upload_reports.py snyk-report.json
+    - |
+      echo "Checking for report files..."
+      ls -la *.json || echo "No JSON files found in current directory"
+      echo "Current directory contents:"
+      ls -la
+    - |
+      # Upload reports that exist
+      if [ -f "gitleaks-report.json" ]; then
+        echo "Uploading gitleaks report..."
+        python3 upload_reports.py gitleaks-report.json
+      else
+        echo "gitleaks-report.json not found"
+      fi
+      
+      if [ -f "report.json" ]; then
+        echo "Uploading trivy report..."
+        python3 upload_reports.py report.json
+      else
+        echo "report.json not found"
+      fi
+      
+      if [ -f "snyk-report.json" ]; then
+        echo "Uploading snyk report..."
+        python3 upload_reports.py snyk-report.json
+      else
+        echo "snyk-report.json not found - checking if snyk-sast job ran"
+      fi
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
     DEFECTDOJO_API_URL: "http://65.20.88.177:8080"
   when: always
-  needs: [gitleaks_scan, trivy-sca, snyk-sast]
+  needs: 
+    - job: gitleaks_scan
+      artifacts: true
+    - job: trivy-sca
+      artifacts: true
+    - job: snyk-sast
+      artifacts: true
+      optional: true
   allow_failure: true

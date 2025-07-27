@@ -45,14 +45,16 @@ snyk-sast:
     - npm install -g snyk snyk-to-html
   script:
     - snyk auth $SNYK_TOKEN
-    - snyk code test --json-file=snyk-report.json || echo "Snyk found vulnerabilities - check report"
+    - snyk code test --json > snyk-report.json || echo "Snyk found vulnerabilities - check report"
+    - echo "Checking if snyk-report.json was created..."
+    - ls -la snyk-report.json || echo "snyk-report.json not found"
+    - test -s snyk-report.json && echo "snyk-report.json has content" || echo "snyk-report.json is empty or missing"
   artifacts:
     when: always
     paths:
       - snyk-report.json
     reports:
       sast: snyk-report.json
-
 # 4. Building Image
 build:
   stage: building

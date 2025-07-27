@@ -1,19 +1,19 @@
 stages:
-  - secret_scan
-  - sca
-  - sast
-  - building
-  - image_scan
-  - container_security
-  - dast
-  - upload_results
+  - Secret_scanning
+  - SCA
+  - SAST
+  - Image_building
+  - Image_scanning
+  - Container_scanning
+  - DAST
+  - Vulnerability_management
 
 variables:
   DOCKER_TLS_CERTDIR: ""
 
 # 1. Secret Scanning
 gitleaks_scan:
-  stage: secret_scan
+  stage: Secret_scanning
   image:
     name: zricethezav/gitleaks
     entrypoint: [""]
@@ -25,8 +25,8 @@ gitleaks_scan:
     when: always
 
 # 2. SCA (Software Composition Analysis)
-trivy-sca:
-  stage: sca
+trivy_sca:
+  stage: SCA
   image: alpine:latest
   before_script:
     - apk add --no-cache curl
@@ -38,8 +38,8 @@ trivy-sca:
       - report.json
 
 # 3. SAST (Static Application Security Testing)
-snyk-sast:
-  stage: sast
+snyk_sast:
+  stage: SAST
   image: node:18
   before_script:
     - npm install -g snyk snyk-to-html
@@ -58,7 +58,7 @@ snyk-sast:
 
 # 4. Building Image
 build:
-  stage: building
+  stage: Image_building
   tags:
     - centos
   script:
@@ -66,8 +66,8 @@ build:
     - docker compose -f .build/docker-compose.yml up -d
 
 # 5. Image Scanning
-trivy-scan:
-  stage: image_scan
+trivy_scan:
+  stage: Image_scanning
   tags:
     - centos
   script:
@@ -75,15 +75,15 @@ trivy-scan:
     - |
       IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
       [ -z "$IMAGES" ] && { echo "No images found"; exit 1; }
-     
+      
       mkdir -p reports && echo "Scanning $(echo "$IMAGES" | wc -l) images"
-     
+      
       echo "$IMAGES" | while read image; do
         echo "Scanning: $image"
         trivy image --format json --severity HIGH,CRITICAL \
           --output "reports/$(echo $image | tr ':/' '--').json" "$image"
       done
-     
+      
       echo "Scan complete. Reports in artifacts."
   artifacts:
     paths:
@@ -93,8 +93,8 @@ trivy-scan:
     - build
 
 # 6. Container Security Scanning
-container-runtime-scan:
-  stage: container_security
+container_runtime_scan:
+  stage: Container_scanning
   tags:
     - centos
   script:
@@ -110,7 +110,7 @@ container-runtime-scan:
 
 # 7. DAST (Dynamic Application Security Testing)
 zap_dast_scan:
-  stage: dast
+  stage: DAST
   tags:
     - centos
   variables:
@@ -151,7 +151,7 @@ zap_dast_scan:
 
 # 8. DefectDojo Upload
 upload_to_defectdojo:
-  stage: upload_results
+  stage: Vulnerability_management
   image: python:3.11
   before_script:
     - python3 -m pip install --upgrade pip
@@ -200,15 +200,15 @@ upload_to_defectdojo:
   needs: 
     - job: gitleaks_scan
       artifacts: true
-    - job: trivy-sca
+    - job: trivy_sca
       artifacts: true
-    - job: snyk-sast
-      artifacts: true
-      optional: true
-    - job: trivy-scan
+    - job: snyk_sast
       artifacts: true
       optional: true
-    - job: container-runtime-scan
+    - job: trivy_scan
+      artifacts: true
+      optional: true
+    - job: container_runtime_scan
       optional: true
     - job: zap_dast_scan
       artifacts: true

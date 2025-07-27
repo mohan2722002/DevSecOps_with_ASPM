@@ -131,12 +131,20 @@ upload_to_defectdojo:
   stage: upload_results
   tags:
     - dojo  # Uses your shell executor runner
-  before_script:
-    - python3 -m pip install --user requests  # Install on system Python
+  # before_script:
+  #   - python3 -m pip install --user requests  # Install on system Python
+  # script:
+  #   - python3 upload_reports.py gitleaks-report.json
+  #   - python3 upload_reports.py report.json
+  #   - python3 upload_reports.py snyk-report.json
+  image: python:3.11
   script:
-    - python3 upload_reports.py gitleaks-report.json
-    - python3 upload_reports.py report.json
-    - python3 upload_reports.py snyk-report.json
+     - python3 upload_reports.py gitleaks-report.json
+     - python3 upload_reports.py report.json
+     - python3 upload_reports.py snyk-report.json
+  #variables:
+    #DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    #DEFECTDOJO_HOST: $DEFECTDOJO_HOST
     # (Add more as needed)
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY

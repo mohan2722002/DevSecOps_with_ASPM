@@ -9,7 +9,7 @@ This project implements a complete DevSecOps pipeline that performs automated se
 ## Pipeline Architecture
 
 The security pipeline is structured into eight sequential stages, each targeting specific security aspects:
-
+[](https://cdn.corenexis.com/file?8226399168.png)
 ```
 Secret Scan → SCA → SAST → Building → Image Scan → Container Security → DAST → Upload Results
 ```

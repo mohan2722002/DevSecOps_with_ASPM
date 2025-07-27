@@ -5,18 +5,27 @@ import sys
 # Map file names to DefectDojo scan types
 SCAN_TYPE_MAP = {
     'gitleaks': 'Gitleaks Scan',
+    'report.json': 'Trivy Scan',  # Specifically for report.json from trivy-sca
     'trivy': 'Trivy Scan',
-    'snyk': 'Snyk Scan',
-    'zap': 'OWASP ZAP Scan',
+    'snyk': 'Snyk Scan', 
+    'zap': 'ZAP Scan',
     # Extend as needed for more tools
 }
 
 def determine_scan_type(report_path):
     file_name = os.path.basename(report_path).lower()
+    
+    # Check for exact filename matches first
+    if file_name == 'report.json':
+        return 'Trivy Scan'
+    
+    # Then check for keyword matches
     for keyword, scan_type in SCAN_TYPE_MAP.items():
         if keyword in file_name:
             return scan_type
-    return 'Generic Scan'  # Fallback
+    
+    # List of valid DefectDojo scan types as fallback
+    return 'Trivy Scan'  # Default to Trivy since report.json is from Trivy
 
 def upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path):
     headers = {'Authorization': f'Token {api_key}'}

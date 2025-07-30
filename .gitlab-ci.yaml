@@ -24,7 +24,7 @@ gitleaks_scan:
       - gitleaks-report.json
     when: always
 
-# 2. SCA (Software Composition Analysis)
+# 2. SCA (Software Composition Analysis)     
 trivy_sca:
   stage: SCA
   image: alpine:latest

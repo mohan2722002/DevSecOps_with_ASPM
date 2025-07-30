@@ -183,7 +183,7 @@ upload_to_defectdojo:
         echo "No Trivy image scan reports directory found"
       fi
       
-      # Upload ZAP DAST report
+      # Upload ZAP DAST report  
       if [ -f "zap-reports/zap-report.json" ]; then
         echo "Uploading ZAP DAST report..."
         python3 upload_reports.py zap-reports/zap-report.json

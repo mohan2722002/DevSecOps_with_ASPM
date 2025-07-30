@@ -108,20 +108,27 @@ container_runtime_scan:
   dependencies:
     - build
 
-#7 DAST
+# Enhanced DAST job with explicit image pulling:
 zap_dast_scan:
   stage: DAST
   tags:
     - centos
   variables:
     APP_URL: "http://localhost:80"
+    ZAP_IMAGE: "zaproxy/zap-stable:latest"
+  before_script:
+    # Optional: Explicitly pull the image (good for troubleshooting)
+    - echo "Pulling ZAP Docker image..."
+    - docker pull $ZAP_IMAGE
+    - docker images | grep zaproxy
   script:
     - echo "Running ZAP full scan against $APP_URL"
     - mkdir -p zap-reports
     - chmod 777 zap-reports
-    - docker run --rm --network="host" \
+    - |
+      docker run --rm --network="host" \
         -v $(pwd)/zap-reports:/zap/wrk/:rw \
-        zaproxy/zap-stable zap-full-scan.py \
+        $ZAP_IMAGE zap-full-scan.py \
         -t $APP_URL -r zap-report.html -J zap-report.json || true
     - echo "ZAP scan complete. Checking generated files:"
     - ls -la zap-reports/
@@ -129,6 +136,7 @@ zap_dast_scan:
     paths:
       - zap-reports/
     expire_in: 1 week
+    when: always
   dependencies:
     - build
 

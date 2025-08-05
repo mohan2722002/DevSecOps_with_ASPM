@@ -36,7 +36,7 @@ services:
       context: ./database_admin  # Directory context for building the database admin service
       dockerfile: Dockerfile  # Specifies the Dockerfile for building the admin service
     ports:
-      - 127.0.0.1:81:80  # Maps port 81 on localhost to port 80 inside the container for web access
+      - 81:80  # Maps port 81 on localhost to port 80 inside the container for web access
     networks:
       - datanet  # Connects the container to the 'datanet' network
 
@@ -52,9 +52,9 @@ services:
       context: ./www  # Directory context for building the web service
       dockerfile: Dockerfile  # Dockerfile used to build the web service image
     ports:
-      - 127.0.0.1:80:80  # Maps port 80 on localhost to port 80 inside the container (for HTTP)
-      - 127.0.0.1:8888:80  # Maps port 8888 on localhost to port 80 for StackHawk scanning
-      - 127.0.0.1:443:443  # Maps port 443 on localhost to port 443 inside the container (for HTTPS)
+      - 80:80  # Maps port 80 on localhost to port 80 inside the container (for HTTP)
+      - 8888:80  # Maps port 8888 on localhost to port 80 for StackHawk scanning
+      - 443:443  # Maps port 443 on localhost to port 443 inside the container (for HTTPS)
     networks:
       - datanet  # Connects to the 'datanet' network for database communication
       - ldapnet  # Connects to the 'ldapnet' network for LDAP communication
@@ -70,7 +70,7 @@ services:
       - ldap_data:/var/lib/ldap  # Mounts a volume to persist LDAP data
       - ldap_config:/etc/ldap/slapd.d  # Mounts a volume to persist LDAP configuration
     ports:
-      - 127.0.0.1:389:389  # Maps port 389 (LDAP) on localhost to port 389 inside the container
+      - 389:389  # Maps port 389 (LDAP) on localhost to port 389 inside the container
     networks:
       - ldapnet  # Connects to the 'ldapnet' network for LDAP communication
 
@@ -84,7 +84,7 @@ services:
       context: ./ldap_admin  # Directory context for building the LDAP admin service
       dockerfile: Dockerfile  # Dockerfile used to build the LDAP admin image
     ports:
-      - 127.0.0.1:82:80  # Maps port 82 on localhost to port 80 inside the container for admin access
+      - 82:80  # Maps port 82 on localhost to port 80 inside the container for admin access
     networks:
       - ldapnet  # Connects to the 'ldapnet' network
 

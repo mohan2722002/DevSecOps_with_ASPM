@@ -5,34 +5,56 @@ import sys
 # Map file names to DefectDojo scan types
 SCAN_TYPE_MAP = {
     'gitleaks-report.json': 'Gitleaks Scan',
-    'report.json': 'Trivy Scan',  # This is from trivy-sca
+    'sca_report.json': 'Trivy Scan',
     'snyk-report.json': 'Snyk Scan',
-    'zap-report.json': 'ZAP Scan',
+    'dast_report.xml': 'ZAP Scan',
+    'image_scan_report.json': 'Trivy Scan',
+    'container_scan_report.json': 'Trivy Scan',
 }
 
 def determine_scan_type(report_path):
     file_name = os.path.basename(report_path).lower()
     
-    # Check for exact filename matches first
     if file_name in SCAN_TYPE_MAP:
         return SCAN_TYPE_MAP[file_name]
     
-    # Check for keyword matches in filename
     if 'gitleaks' in file_name:
         return 'Gitleaks Scan'
     elif 'snyk' in file_name:
         return 'Snyk Scan'
-    elif 'zap' in file_name:
+    elif 'dast' in file_name:
         return 'ZAP Scan'
-    elif 'trivy' in file_name or file_name == 'report.json':
+    elif 'sca' in file_name:
         return 'Trivy Scan'
-    
-    # Default fallback - should not happen with proper naming
-    return 'Trivy Scan'
+    elif 'image' in file_name:
+        return 'Trivy Scan'
+    elif 'container' in file_name:
+        return 'Trivy Scan'
+
+    return 'Unknown Scan Type'
+
+def get_tag_from_filename(report_path):
+    file_name = os.path.basename(report_path).lower()
+
+    if 'image' in file_name:
+        return 'image'
+    elif 'sca' in file_name:
+        return 'sca'
+    elif 'container' in file_name:
+        return 'runtime'
+    elif 'gitleaks' in file_name:
+        return 'secret-scan'
+    elif 'snyk' in file_name:
+        return 'sast'
+    elif 'dast' in file_name or file_name.endswith('.xml'):
+        return 'dast'
+
+    return 'default'
 
 def upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path):
     headers = {'Authorization': f'Token {api_key}'}
-    
+    tag = get_tag_from_filename(report_path)
+
     with open(report_path, 'rb') as f:
         files = {
             'file': (os.path.basename(report_path), f, 'application/json')
@@ -42,18 +64,18 @@ def upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path):
             'scan_type': scan_type,
             'active': 'true',
             'verified': 'true',
-            'scan_date': '',  # Optional: Provide if available
-            'lead': '',       # Optional: DefectDojo user ID or email
-            'tags': '',       # Optional: Any custom tags
+            'scan_date': '',
+            'lead': '',
+            'tags': tag,
         }
         
         url = f'{api_url}/api/v2/import-scan/'
         response = requests.post(url, headers=headers, files=files, data=data)
     
     if response.status_code == 201:
-        print(f'✅ Successfully uploaded {report_path} as {scan_type}')
+        print(f' Successfully uploaded {report_path} as {scan_type} with tag: {tag}')
     else:
-        print(f'❌ Failed to upload {report_path} as {scan_type} - {response.status_code}: {response.text}')
+        print(f' Failed to upload {report_path} as {scan_type} - {response.status_code}: {response.text}')
 
 def main():
     if len(sys.argv) < 2:
@@ -75,7 +97,7 @@ def main():
             continue
         
         scan_type = determine_scan_type(report_path)
-        print(f'📄 Processing {report_path} as {scan_type}')
+        print(f' Processing {report_path} as {scan_type}')
         upload_scan_report(api_url, api_key, engagement_id, scan_type, report_path)
 
 if __name__ == '__main__':

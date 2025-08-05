@@ -15,7 +15,7 @@ variables:
 gitleaks_scan:
   stage: Secret_scanning
   image:
-    name: zricethezav/gitleaks
+    name: zricethezav/gitleaks    
     entrypoint: [""]
   script:
     - gitleaks detect --source . --report-format json --report-path gitleaks-report.json --verbose || true
@@ -27,15 +27,15 @@ gitleaks_scan:
 # 2. SCA (Software Composition Analysis)     
 trivy_sca:
   stage: SCA
-  image: alpine:latest
+  image: alpine:latest 
   before_script:
     - apk add --no-cache curl
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
-    - trivy fs --format json --output report.json .
+    - trivy fs --scanners vuln --vuln-type library --format json --output sca_report.json .
   artifacts:
     paths:
-      - report.json
+      - sca_report.json
 
 # 3. SAST (Static Application Security Testing)
 snyk_sast:
@@ -60,88 +60,104 @@ snyk_sast:
 build:
   stage: Image_building
   tags:
-    - centos
+    - ubuntu
   script:
-    - echo "Building containers using Docker Compose..."
+    - echo "Building containers using Docker Compose with caching..."
+    - docker compose -f .build/docker-compose.yml build
     - docker compose -f .build/docker-compose.yml up -d
 
-# 5. Image Scanning
-trivy_scan:
+#5 Image scanning
+trivy_scan: 
   stage: Image_scanning
   tags:
-    - centos
+    - ubuntu
+  variables:
+    TRIVY_SEVERITY: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
   script:
     - echo "Scanning Docker images..."
+    - mkdir -p image_reports
     - |
       IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>")
       [ -z "$IMAGES" ] && { echo "No images found"; exit 1; }
-      
-      mkdir -p reports && echo "Scanning $(echo "$IMAGES" | wc -l) images"
-      
-      echo "$IMAGES" | while read image; do
-        echo "Scanning: $image"
-        trivy image --format json --severity HIGH,CRITICAL \
-          --output "reports/$(echo $image | tr ':/' '--').json" "$image"
+
+      for image in $IMAGES; do
+        name=$(echo "$image" | tr '/:' '_')
+        echo "Scanning image: $image"
+        trivy image --format json --severity "$TRIVY_SEVERITY" "$image" -o "image_reports/image_${name}.json"
       done
-      
-      echo "Scan complete. Reports in artifacts."
+      echo "Scan complete. Reports saved in image_reports/."
   artifacts:
     paths:
-      - reports/
+      - image_reports/
     expire_in: 1 week
-  dependencies:
-    - build
+  cache:
+    paths:
+      - /root/.cache/trivy
 
 # 6. Container Security Scanning
 container_runtime_scan:
   stage: Container_scanning
   tags:
-    - centos
+    - ubuntu 
   script:
-    - echo "Scanning running containers..."
+    - echo "Installing Trivy if not present..."
     - |
-      for container in $(docker ps --format "{{.ID}}"); do
-        image=$(docker inspect $container --format='{{.Config.Image}}')
-        echo "Scanning container $container (image: $image)"
-        trivy image --severity HIGH,CRITICAL $image
+      if ! command -v trivy &> /dev/null; then
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      fi
+    - mkdir -p container_reports
+    - echo "Scanning running containers using Trivy (runtime scan)..."
+    - |
+      for container in $(docker ps -q); do
+        pid=$(docker inspect --format '{{.State.Pid}}' "$container")
+        name=$(docker inspect --format '{{.Name}}' "$container" | sed 's/^\/\|\/$//g')
+        echo "Scanning container $name (PID: $pid)..."
+        trivy fs "/proc/$pid/root" --format json -o "container_reports/container_${name}.json" || echo " Failed to scan $name"
       done
-  dependencies:
-    - build
+  artifacts:
+    paths:
+      - container_reports/
+    expire_in: 1 week
 
-# Enhanced DAST job with explicit image pulling:
+
+
+# 7. DAST (Dynamic Application Security Testing)
+variables:
+  DEPENDENCY_CHECK: "/opt/dependency-check/dependency-check/bin/dependency-check.sh"
+  ZAP_REPORT_HTML: "dast_report.html"   
+  ZAP_REPORT_XML: "dast_report.xml"     
+  ZAP_REPORT_JSON: "dast_report.json"   
+  TARGET_URL: "http://192.168.154.130:80"
+
 zap_dast_scan:
   stage: DAST
   tags:
-    - centos
-  variables:
-    APP_URL: "http://localhost:80"
-    ZAP_IMAGE: "zaproxy/zap-stable:latest"
-  before_script:
-    # Optional: Explicitly pull the image (good for troubleshooting)
-    - echo "Pulling ZAP Docker image..."
-    - docker pull $ZAP_IMAGE
-    - docker images | grep zaproxy
+    - ubuntu
   script:
-    - echo "Running ZAP full scan against $APP_URL"
-    - mkdir -p zap-reports
-    - chmod 777 zap-reports
+    - echo "Running ZAP Baseline DAST Scan..."
     - |
-      docker run --rm --network="host" \
-        -v $(pwd)/zap-reports:/zap/wrk/:rw \
-        $ZAP_IMAGE zap-full-scan.py \
-        -t $APP_URL -r zap-report.html -J zap-report.json || true
-    - echo "ZAP scan complete. Checking generated files:"
-    - ls -la zap-reports/
+      docker run --rm \
+        --network host \
+        -u root \
+        -v "$CI_PROJECT_DIR:/zap/wrk/:rw" \
+        zaproxy/zap-stable \
+        zap-baseline.py -t "$TARGET_URL" \
+        -r "$ZAP_REPORT_HTML" \
+        -x "$ZAP_REPORT_XML" \
+        -J "$ZAP_REPORT_JSON" || true
+    - echo "ZAP Scan completed. Generated files:"
+    - ls -l
   artifacts:
     paths:
-      - zap-reports/
-    expire_in: 1 week
+      - $ZAP_REPORT_HTML
+      - $ZAP_REPORT_XML
+      - $ZAP_REPORT_JSON
     when: always
-  dependencies:
-    - build
+    expire_in: 1 week
 
-# 8. DefectDojo Upload
-upload_to_defectdojo:
+# 8. DefectDojo Upload - Separate jobs for each scan type
+
+upload_gitleaks_to_defectdojo:
   stage: Vulnerability_management
   image: python:3.11
   before_script:
@@ -149,74 +165,127 @@ upload_to_defectdojo:
     - python3 -m pip install requests
   script:
     - |
-      echo "Checking for report files..."
-      ls -la *.json || echo "No JSON files found in current directory"
-      ls -la zap-reports/ || echo "No ZAP reports directory found"
-      ls -la reports/ || echo "No Trivy reports directory found"
-      echo "Current directory contents:"
-      ls -la
-    - |
-      # Upload reports that exist
       if [ -f "gitleaks-report.json" ]; then
         echo "Uploading gitleaks report..."
         python3 upload_reports.py gitleaks-report.json
       else
         echo "gitleaks-report.json not found"
+        exit 1
       fi
-      
-      if [ -f "report.json" ]; then
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  needs: 
+    - job: gitleaks_scan
+      artifacts: true
+  allow_failure: true
+
+upload_sca_to_defectdojo:
+  stage: Vulnerability_management
+  image: python:3.11
+  before_script:
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install requests
+  script:
+    - |
+      if [ -f "sca_report.json" ]; then
         echo "Uploading trivy SCA report..."
-        python3 upload_reports.py report.json
+        python3 upload_reports.py sca_report.json
       else
-        echo "report.json not found"
+        echo "sca_report.json not found"
+        exit 1
       fi
-      
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  needs:
+    - job: trivy_sca
+      artifacts: true
+  allow_failure: true
+
+upload_sast_to_defectdojo:
+  stage: Vulnerability_management
+  image: python:3.11
+  before_script:
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install requests
+  script:
+    - |
       if [ -f "snyk-report.json" ]; then
         echo "Uploading snyk SAST report..."
         python3 upload_reports.py snyk-report.json
       else
         echo "snyk-report.json not found"
-      fi
-      
-      # Upload Trivy image scan reports
-      if [ -d "reports" ]; then
-        echo "Uploading Trivy image scan reports..."
-        for report_file in reports/*.json; do
-          if [ -f "$report_file" ]; then
-            echo "Uploading $report_file..."
-            python3 upload_reports.py "$report_file"
-          fi
-        done
-      else
-        echo "No Trivy image scan reports directory found"
-      fi
-      
-      # Upload ZAP DAST report  
-      if [ -f "zap-reports/zap-report.json" ]; then
-        echo "Uploading ZAP DAST report..."
-        python3 upload_reports.py zap-reports/zap-report.json
-      else
-        echo "zap-report.json not found in zap-reports directory"
+        exit 1
       fi
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_API_URL: "http://65.20.88.177:8080"
-  when: always
-  needs: 
-    - job: gitleaks_scan
-      artifacts: true
-    - job: trivy_sca
-      artifacts: true
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  needs:
     - job: snyk_sast
       artifacts: true
-      optional: true
-    - job: trivy_scan
-      artifacts: true
-      optional: true
-    - job: container_runtime_scan
-      optional: true
-    - job: zap_dast_scan
-      artifacts: true
-      optional: true
   allow_failure: true
+
+upload_image_to_defectdojo:
+  stage: Vulnerability_management
+  image: python:3.11
+  before_script:
+    - pip install --upgrade pip
+    - pip install requests
+  script:
+    - python3 upload_reports.py image_reports/*.json
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  dependencies:
+    - trivy_scan
+
+
+upload_container_to_defectdojo:
+  stage: Vulnerability_management
+  image: python:3.11
+  before_script:
+    - pip install --upgrade pip
+    - pip install requests
+  script:
+    - |
+      for report in container_reports/*.json; do
+        echo "Uploading $report"
+        python3 upload_reports.py "$report"
+      done
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  dependencies:
+    - container_runtime_scan
+  artifacts:
+    when: always
+
+upload_dast_to_defectdojo:
+  stage: Vulnerability_management
+  image: python:3.11
+  before_script:
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install requests
+  script:
+    - |
+      if [ -f "dast_report.xml" ]; then
+        echo "Uploading ZAP DAST report..."
+        python3 upload_reports.py dast_report.xml
+      else
+        echo "dast_report.json not found"
+        exit 1
+      fi
+  variables:
+    DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
+    DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
+    DEFECTDOJO_URL: $DEFECTDOJO_URL
+  needs:
+    - job: zap_dast_scan
+      artifacts: true  
+  allow_failure: true 

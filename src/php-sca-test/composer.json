@@ -1,0 +1,7 @@
+{
+    "name": "test/php-sca",
+    "description": "Test SCA scan with PHP",
+    "require": {
+        "phpmailer/phpmailer": "6.1.5"
+    }
+}

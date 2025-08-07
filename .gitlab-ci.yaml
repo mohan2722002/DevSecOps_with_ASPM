@@ -8,9 +8,6 @@ stages:
   - DAST
   - Vulnerability_management
 
-variables:
-  DOCKER_TLS_CERTDIR: ""
-
 # 1. Secret Scanning
 gitleaks_scan:
   stage: Secret_scanning

@@ -29,7 +29,7 @@ trivy_sca:
     - apk add --no-cache curl
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
-    - trivy fs --scanners vuln --vuln-type library --format json --output sca_report.json .
+    - trivy fs --scanners vuln,license --vuln-type library --format json --output sca_report.json .
   artifacts:
     paths:
       - sca_report.json

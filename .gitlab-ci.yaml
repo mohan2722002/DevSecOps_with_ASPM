@@ -172,7 +172,7 @@ upload_gitleaks_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL
   needs: 
     - job: gitleaks_scan
       artifacts: true
@@ -196,7 +196,7 @@ upload_sca_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL
   needs:
     - job: trivy_sca
       artifacts: true
@@ -220,7 +220,7 @@ upload_sast_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL
   needs:
     - job: snyk_sast
       artifacts: true
@@ -237,7 +237,7 @@ upload_image_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL
   dependencies:
     - trivy_scan
 
@@ -257,7 +257,7 @@ upload_container_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL
   dependencies:
     - container_runtime_scan
   artifacts:
@@ -281,7 +281,7 @@ upload_dast_to_defectdojo:
   variables:
     DEFECTDOJO_API_KEY: $DEFECTDOJO_API_KEY
     DEFECTDOJO_ENGAGEMENT_ID: $DEFECTDOJO_ENGAGEMENT_ID
-    DEFECTDOJO_URL: $DEFECTDOJO_URL  
+    DEFECTDOJO_API_URL: $DEFECTDOJO_API_URL  
   needs:
     - job: zap_dast_scan
       artifacts: true  
